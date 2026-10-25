@@ -20,7 +20,7 @@ independent verification, and a clear place for developers, designers and produc
 npx buildline
 ```
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Models per station](#models-per-station) · [Dashboard](#the-dashboard) · [Docs](#docs)
+**[Website & docs](https://julianoczkowski.github.io/buildline/)** · [Quick start](#quick-start) · [How it works](#how-it-works) · [Models per station](#models-per-station) · [Dashboard](#the-dashboard)
 
 </div>
 
@@ -193,6 +193,8 @@ Full reference: [docs/cli.md](docs/cli.md)
 </details>
 
 ## Docs
+
+Read them on the **[docs site](https://julianoczkowski.github.io/buildline/)**, or here on GitHub:
 
 | | |
 |---|---|

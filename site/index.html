@@ -1,0 +1,134 @@
+<main>
+<section class="hero">
+  <a class="badge" href="models.html">New in <b>v{{version}}</b> · models per station →</a>
+  <h1>An AI software factory for <em>any project</em></h1>
+  <p>Buildline installs a spec-driven pipeline that coding agents follow from idea to merged PR, with real quality gates, independent verification, and a clear place for developers, designers and product managers.</p>
+  <div class="actions">
+    <div class="cmd"><span><span class="prompt">$</span> npx buildline</span><button type="button" data-copy="npx buildline" aria-label="Copy install command">Copy</button></div>
+    <a class="btn" href="getting-started.html">Read the docs</a>
+  </div>
+  <p class="works">Works with <span>Claude Code · Codex · Cursor · Gemini CLI · GitHub Copilot</span> and anything that reads <code>AGENTS.md</code></p>
+</section>
+
+<div class="shot">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png">
+    <img src="assets/dashboard-light.png" width="1440" height="440" alt="The Buildline dashboard: features moving through spec, design, plan, build, verify, review and ship">
+  </picture>
+</div>
+
+<section class="section alt">
+  <span class="eyebrow">Why</span>
+  <h2>Agents can build the feature. They need a factory around them.</h2>
+  <p class="lede">Most repos give coding agents a prompt and hope. Buildline gives them the three things that turn a good demo into work you can merge.</p>
+  <div class="grid">
+    <div class="card"><span class="num">01</span><span class="before">"Make saved carts work."</span><h3>A definition of done</h3><p>Requirements and Given/When/Then scenarios that a human owns, locked while the agent builds so the goalposts can't move.</p></div>
+    <div class="card"><span class="num">02</span><span class="before">"It works on my end."</span><h3>A way to check the work</h3><p>Your own lint, types, tests and build as gates, plus a verifier agent that never saw the code being written.</p></div>
+    <div class="card"><span class="num">03</span><span class="before">Every chat starts from zero.</span><h3>Memory between sessions</h3><p>Specs, task lists with <code>passes</code> flags and progress logs on disk, so any session picks up exactly where the last one stopped.</p></div>
+  </div>
+</section>
+
+<section class="section">
+  <span class="eyebrow">How it works</span>
+  <h2>One line, sized to the change</h2>
+  <p class="lede">Every change moves through the same stations, each with a plain markdown playbook. Small fixes skip the ceremony; epics get split before anyone writes code.</p>
+  <div class="line" role="list">
+    <div class="station" role="listitem"><b>Spec</b><small>PM</small></div>
+    <div class="station" role="listitem"><b>Design</b><small>designer</small></div>
+    <div class="station" role="listitem"><b>Plan</b><small>engineer</small></div>
+    <div class="station" role="listitem"><b>Build</b><small>agent</small></div>
+    <div class="station" role="listitem"><b>Verify</b><small>independent agent</small></div>
+    <div class="station" role="listitem"><b>Review</b><small>agent + human</small></div>
+    <div class="station" role="listitem"><b>Ship</b><small>human merges</small></div>
+  </div>
+  <div class="routes">
+    <span class="route"><code>fix</code> intake → build → verify → ship</span>
+    <span class="route"><code>feature</code> every station</span>
+    <span class="route"><code>epic</code> spec, then split into features</span>
+  </div>
+</section>
+
+<section class="section alt">
+  <span class="eyebrow">For the whole team</span>
+  <h2>Everyone gets a station, not just developers</h2>
+  <p class="lede">Product managers and designers work in a local dashboard or plain markdown. Developers stay in their terminal and editor.</p>
+  <div class="grid">
+    <div class="card"><h3>Product managers</h3><p>Write the brief, own requirements and acceptance scenarios, and approve specs from the dashboard with <code>npx buildline ui</code>.</p><p style="margin-top:14px"><a href="for-product-managers.html">PM guide →</a></p></div>
+    <div class="card"><h3>Designers</h3><p>Bring a Figma link or screenshots to <code>/buildline-design</code>. Flows, states, components and copy become part of the spec the agent builds against.</p><p style="margin-top:14px"><a href="for-designers.html">Designer guide →</a></p></div>
+    <div class="card"><h3>Developers</h3><p>Own the technical design, the plan and the merge. Run stations in Claude Code, or let <code>buildline run</code> take a feature to a ready PR.</p><p style="margin-top:14px"><a href="for-developers.html">Developer guide →</a></p></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="split">
+    <div>
+      <span class="eyebrow">Models per station</span>
+      <h2>The right model for each job</h2>
+      <p class="lede" style="margin-bottom:24px">Use the strongest model where judgement matters and a fast one where the work is well specified. Or hand the review to a different vendor for a second opinion.</p>
+      <ul class="checks">
+        <li><b>Presets</b> for the common setups: same model everywhere, balanced, budget, second opinion.</li>
+        <li><b>Claude Code</b> skills and subagents switch model per station.</li>
+        <li><b>Codex and Gemini</b> stations are handed off automatically.</li>
+      </ul>
+      <p style="margin-top:24px"><a class="btn" href="models.html">How models work</a></p>
+    </div>
+<pre class="term"><span class="c"># Opus thinks, Sonnet builds</span>
+<span class="k">$</span> npx buildline models preset balanced
+
+<span class="c"># a second vendor reviews every diff</span>
+<span class="k">$</span> npx buildline models set review codex
+
+<span class="k">$</span> npx buildline models
+  spec      opus
+  design    opus
+  plan      opus
+  build     sonnet
+  verify    sonnet
+  review    codex</pre>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="split">
+    <div>
+      <span class="eyebrow">Guardrails</span>
+      <h2>Rules that hold, not rules that hope</h2>
+      <p class="lede" style="margin-bottom:0">Instructions in prose are advice. These are enforced by hooks, separate contexts and files on disk.</p>
+    </div>
+    <ul class="checks">
+      <li><b>Acceptance lock.</b> A hook blocks edits to a spec's acceptance scenarios while the feature is being built, verified or reviewed.</li>
+      <li><b>Independent verification.</b> The verifier starts in a clean context with only the spec, so the builder never grades its own work.</li>
+      <li><b>Evidence before done.</b> A task flips to <code>"passes": true</code> only after its check and the gates have been run and observed.</li>
+      <li><b>Humans merge.</b> Always, at every autonomy level.</li>
+      <li><b>Your files stay yours.</b> Marked blocks, hash-tracked files, edits kept on update, and a clean <code>remove</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <span class="eyebrow">Autonomy</span>
+  <h2>Dial it up as trust is earned</h2>
+  <p class="lede">Start guided. Raise the level when your gates and acceptance scenarios have proven themselves. At level 3, <code>buildline run</code> drives Claude Code's <code>/goal</code> until the feature is ready.</p>
+  <div class="levels">
+    <div class="level"><span class="n">L1</span><h3>Assist</h3><p>A human approves every station. The agent never moves on alone.</p></div>
+    <div class="level default"><span class="n">L2</span><h3>Guided</h3><p>Humans approve spec and plan. Agents build, verify and review.</p></div>
+    <div class="level"><span class="n">L3</span><h3>Autopilot</h3><p>Humans approve the spec. Plan through review runs unattended.</p></div>
+    <div class="level"><span class="n">L4</span><h3>Dark factory</h3><p>Spec to ready PR with no checkpoints. A human still merges.</p></div>
+  </div>
+</section>
+
+<section class="section alt cta">
+  <span class="eyebrow">Get started</span>
+  <h2>Two minutes to your first feature</h2>
+  <p class="lede">Works on an empty folder and on a ten-year-old monorepo, in any language or framework. Buildline shows every file before it writes anything.</p>
+  <div class="steps">
+    <div class="card"><span class="num">1 · install</span><h3><code>npx buildline</code></h3><p>Detects your stack and test, lint and build commands, then asks five quick questions.</p></div>
+    <div class="card"><span class="num">2 · onboard</span><h3><code>/buildline-onboard</code></h3><p>Interviews you and scaffolds a new project, or maps an existing codebase into context.</p></div>
+    <div class="card"><span class="num">3 · build</span><h3><code>/buildline-new</code></h3><p>Describe the idea. Buildline sizes it, opens a spec and tells you the next step.</p></div>
+  </div>
+  <div class="actions" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <a class="btn primary" href="getting-started.html">Get started</a>
+    <a class="btn" href="{{repo}}">Star on GitHub</a>
+  </div>
+</section>
+</main>

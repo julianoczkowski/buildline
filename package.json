@@ -17,8 +17,10 @@
     "node": ">=20.12"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "start": "node bin/buildline.js"
+    "test": "node --test test/buildline.test.js",
+    "start": "node bin/buildline.js",
+    "site": "node scripts/build-site.mjs",
+    "release": "node scripts/release.mjs"
   },
   "keywords": [
     "claude-code",
@@ -37,10 +39,13 @@
     "type": "git",
     "url": "git+https://github.com/julianoczkowski/buildline.git"
   },
-  "homepage": "https://github.com/julianoczkowski/buildline#readme",
+  "homepage": "https://julianoczkowski.github.io/buildline/",
   "bugs": "https://github.com/julianoczkowski/buildline/issues",
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "marked": "^15.0.12"
   }
 }

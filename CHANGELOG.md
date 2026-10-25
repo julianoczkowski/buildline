@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Docs site at https://julianoczkowski.github.io/buildline/, built from `docs/` by `npm run site`.
+- Releases publish from GitHub Actions on a version tag (`npm run release -- patch`), with npm provenance.
+- Tests now run on Windows with Node 20.
+
 ## 0.3.0 · 2026-10-25
 
 First release.

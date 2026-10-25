@@ -1,0 +1,35 @@
+# Publishes to npm when a version tag is pushed (git push origin v0.4.0).
+# Uses npm trusted publishing (OIDC): no npm token is stored in this repo.
+# One-time setup on npmjs.com: package › Settings › Trusted publisher ›
+# GitHub Actions, user julianoczkowski, repo buildline, workflow release.yml.
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm test
+      - name: Tag matches package.json
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then echo "Tag $GITHUB_REF_NAME does not match package.json ($version)"; exit 1; fi
+      - run: npm publish --access public
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Notes: this version's section of CHANGELOG.md.
+          awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## "v" " {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "Buildline ${GITHUB_REF_NAME#v}" --notes-file notes.md
