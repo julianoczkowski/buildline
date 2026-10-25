@@ -1,0 +1,157 @@
+// Reading and writing factory features (.factory/features/<id>-<slug>/).
+// The CLI, the web dashboard and agents all share this on-disk format.
+import fs from 'node:fs';
+import path from 'node:path';
+import { render, templatesDir } from './render.js';
+
+export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 'review', 'ship', 'done'];
+export const TYPES = ['fix', 'feature', 'epic'];
+export const APPROVAL_STAGES = ['spec', 'design', 'plan'];
+
+export const featuresDir = (root) => path.join(root, '.factory', 'features');
+const today = () => new Date().toISOString().slice(0, 10);
+const now = () => new Date().toISOString();
+
+export function slugify(title) {
+  return (
+    title
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 5)
+      .join('-') || 'feature'
+  );
+}
+
+export function listFeatures(root) {
+  const dir = featuresDir(root);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((d) => /^\d{3,}-/.test(d) && fs.existsSync(path.join(dir, d, 'feature.json')))
+    .sort()
+    .map((d) => {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(dir, d, 'feature.json'), 'utf8'));
+        return { ...data, dir: d, path: path.join(dir, d) };
+      } catch (err) {
+        return { id: d.split('-')[0], dir: d, title: d, status: 'unknown', error: err.message, path: path.join(dir, d) };
+      }
+    });
+}
+
+export function findFeature(root, ref) {
+  const all = listFeatures(root);
+  if (!ref) return null;
+  const r = String(ref).toLowerCase();
+  return (
+    all.find((f) => f.id === r || f.id === r.padStart(3, '0')) ||
+    all.find((f) => f.dir === r) ||
+    all.find((f) => f.slug === r) ||
+    all.find((f) => f.dir.includes(r)) ||
+    null
+  );
+}
+
+export function saveFeature(feature) {
+  const { dir, path: p, error, ...data } = feature;
+  data.updated = now();
+  fs.writeFileSync(path.join(p, 'feature.json'), JSON.stringify(data, null, 2) + '\n');
+  return feature;
+}
+
+export function createFeature(root, { title, type = 'feature', owner = null, parent = null }) {
+  if (!title?.trim()) throw new Error('A feature needs a title.');
+  if (!TYPES.includes(type)) throw new Error(`Type must be one of: ${TYPES.join(', ')}`);
+  const existing = listFeatures(root);
+  const next = existing.reduce((m, f) => Math.max(m, parseInt(f.id, 10) || 0), 0) + 1;
+  const id = String(next).padStart(3, '0');
+  const slug = slugify(title);
+  const dir = path.join(featuresDir(root), `${id}-${slug}`);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const vars = { id, title: title.trim(), type, date: today() };
+  const feature = {
+    id,
+    slug,
+    title: title.trim(),
+    type,
+    status: type === 'fix' ? 'build' : 'spec',
+    owner,
+    parent,
+    blocked: null,
+    approvals: {},
+    tasks: [],
+    metrics: { reworks: 0, createdAt: now(), shippedAt: null },
+    history: [{ at: now(), station: 'new', note: `Opened as ${type}` }],
+    created: now(),
+    updated: now(),
+  };
+  fs.writeFileSync(path.join(dir, 'feature.json'), JSON.stringify(feature, null, 2) + '\n');
+  // Prefer the project's own (possibly customised) templates over the bundled ones.
+  for (const name of ['spec.md', 'progress.md']) {
+    const local = path.join(root, '.factory', 'templates', name);
+    const source = fs.existsSync(local) ? local : path.join(templatesDir, 'feature', name);
+    fs.writeFileSync(path.join(dir, name), render(fs.readFileSync(source, 'utf8'), vars));
+  }
+  return { ...feature, dir: `${id}-${slug}`, path: dir };
+}
+
+export function setStatus(feature, status, note) {
+  if (!STATIONS.includes(status)) throw new Error(`Status must be one of: ${STATIONS.join(', ')}`);
+  feature.status = status;
+  if (status === 'done') feature.metrics = { ...feature.metrics, shippedAt: now() };
+  feature.history = [...(feature.history || []), { at: now(), station: status, note: note || `Moved to ${status}` }];
+  return saveFeature(feature);
+}
+
+export function approve(feature, stage, by) {
+  if (!APPROVAL_STAGES.includes(stage)) throw new Error(`Approval stage must be one of: ${APPROVAL_STAGES.join(', ')}`);
+  feature.approvals = { ...feature.approvals, [stage]: { by: by || 'unknown', at: now() } };
+  feature.history = [...(feature.history || []), { at: now(), station: stage, note: `${stage} approved by ${by || 'unknown'}` }];
+  return saveFeature(feature);
+}
+
+/** What a feature is waiting on, in plain words, for status displays. */
+export function nextAction(feature, autonomy = 2) {
+  const a = feature.approvals || {};
+  const tasks = feature.tasks || [];
+  const passing = tasks.filter((t) => t.passes).length;
+  if (feature.blocked) return { who: 'human', text: `blocked: ${feature.blocked}` };
+  switch (feature.status) {
+    case 'spec':
+      if (/TODO/.test(readSpecSection(feature, 'Acceptance') || 'TODO')) return { who: 'pm', text: 'needs requirements & acceptance', cmd: `/factory-spec ${feature.id}` };
+      return autonomy <= 3 && !a.spec ? { who: 'pm', text: 'waiting on spec approval', cmd: `factory approve ${feature.id} spec` } : { who: 'agent', text: 'ready for design', cmd: `/factory-design ${feature.id}` };
+    case 'design':
+      return { who: 'designer', text: 'needs UX / technical design', cmd: `/factory-design ${feature.id}` };
+    case 'plan':
+      return { who: 'eng', text: 'needs a task plan', cmd: `/factory-plan ${feature.id}` };
+    case 'build':
+      if (feature.type !== 'fix' && autonomy <= 3 && !a.spec) return { who: 'pm', text: 'waiting on spec approval', cmd: `factory approve ${feature.id} spec` };
+      if (feature.type !== 'fix' && autonomy <= 2 && !a.plan && tasks.length) return { who: 'eng', text: 'waiting on plan approval', cmd: `factory approve ${feature.id} plan` };
+      return { who: 'agent', text: tasks.length ? `${passing}/${tasks.length} tasks passing` : 'ready to build', cmd: autonomy >= 3 ? `factory run ${feature.id}` : `/factory-build ${feature.id}` };
+    case 'verify':
+      return { who: 'agent', text: 'ready for verification', cmd: `/factory-verify ${feature.id}` };
+    case 'review':
+      return { who: 'agent', text: 'ready for review', cmd: `/factory-review ${feature.id}` };
+    case 'ship':
+      return { who: 'eng', text: 'ready to ship: open PR', cmd: `/factory-ship ${feature.id}` };
+    case 'done':
+      return { who: null, text: 'shipped' };
+    default:
+      return { who: null, text: feature.status };
+  }
+}
+
+export function readSpecSection(feature, heading) {
+  try {
+    const text = fs.readFileSync(path.join(feature.path, 'spec.md'), 'utf8');
+    const m = new RegExp(`^## ${heading}\\s*$([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, 'm').exec(text);
+    return m ? m[1].trim() : null;
+  } catch {
+    return null;
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "factory-cli",
+  "version": "0.1.0",
+  "description": "Install an AI software factory into any project. Spec-driven pipeline for Claude Code (and any AGENTS.md-compatible agent), for developers, designers and product managers.",
+  "type": "module",
+  "bin": {
+    "factory": "bin/factory.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node bin/factory.js"
+  },
+  "keywords": ["claude-code", "ai", "agents", "software-factory", "spec-driven", "agents-md", "cli"],
+  "author": "Julian Oczkowski",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "picocolors": "^1.1.1"
+  }
+}

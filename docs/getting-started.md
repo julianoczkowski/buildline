@@ -1,0 +1,68 @@
+# Getting started
+
+Factory works the same way on an empty folder and on a ten-year-old monorepo. The only difference is what the first onboarding session does.
+
+## 1. Install
+
+```bash
+cd your-project
+npx factory-cli
+```
+
+> Not on npm yet? Use `npx github:julianoczkowski/factory` anywhere these docs say `npx factory-cli`.
+
+The wizard:
+
+1. **Detects your stack**: languages, frameworks, UI libraries, test tools, package manager, and the commands to lint, type-check, test and build.
+2. **Asks four questions**: which AI tools your team uses, who will use the factory, how much agents may do alone (autonomy), and whether the detected gate commands are right.
+3. **Shows every file it will create or merge** before writing anything.
+4. Offers to **open Claude Code on the onboarding station** straight away.
+
+Non-interactive (CI, scripts, dotfiles):
+
+```bash
+npx factory-cli init --yes --agents claude,cursor --autonomy 2 --ci
+npx factory-cli init --dry-run     # preview only
+```
+
+## 2. Onboard
+
+Open Claude Code and run `/factory-onboard`. Other agents: *"follow .factory/stations/onboard.md"*.
+
+### Empty project (greenfield)
+
+Claude interviews you, one question at a time: what you're building, for whom, what success looks like, what's in and out of scope, platform constraints, look and feel. Then it:
+
+- recommends a stack (with one alternative) and waits for your OK,
+- scaffolds with the framework's official generator,
+- adds a test runner, a linter and one passing smoke test,
+- writes the real gate commands into `factory.json` and runs them until green,
+- fills `.factory/context/` and suggests the first features as a thin vertical slice.
+
+### Existing project (brownfield)
+
+Claude reads first and asks later. The `factory-mapper` subagent maps the codebase in a separate context: product purpose, module map, request flow, conventions (with example file paths), design system, commands (it runs them) and hazards. Claude turns that into the context files, then asks you only what code can't answer: goals, users, what's next, what "good" looks like.
+
+Existing agent setups are respected. If you already have `CLAUDE.md`, `AGENTS.md`, Cursor rules, Spec Kit or BMAD, Factory adds its block next to them and doesn't replace them.
+
+## 3. Ship your first change
+
+```text
+/factory-new Users can't reset their password from the mobile app
+```
+
+Factory sizes it (`fix`, `feature` or `epic`), opens `.factory/features/001-…/`, and tells you the next command. From there, `/factory` always tells you where things stand.
+
+## 4. Bring in the rest of the team
+
+- PMs and designers: `npx factory-cli ui` opens the dashboard: board, specs, approvals.
+- Commit `.factory/`, `AGENTS.md`, `CLAUDE.md` and `.claude/` so everyone shares the same factory.
+- Add `CLAUDE.local.md` and `.claude/settings.local.json` to `.gitignore` for personal tweaks.
+
+## Check your setup
+
+```bash
+npx factory-cli doctor
+```
+
+It checks Node, git, Claude Code, the config, gates, hooks, missing or customised managed files, unfilled context, and broken feature files.

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M8 1L15 14H1z%22 fill=%22%23e5a400%22/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --panel-2: #f0eee9; --ink: #1d1c1a; --ink-2: #5d5a54; --ink-3: #8d8980;
+  --line: #e3e0d9; --accent: #e5a400; --accent-ink: #1d1c1a; --accent-soft: #fdf3d4;
+  --green: #2f8a4c; --green-soft: #e3f3e7; --red: #c23b31; --red-soft: #fbe6e4; --blue: #2c6bd1; --blue-soft: #e4edfb;
+  --violet: #7b4cc2; --violet-soft: #efe7fa; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151514; --panel: #1e1e1c; --panel-2: #262624; --ink: #ecebe7; --ink-2: #b2afa8; --ink-3: #807d76;
+    --line: #33322f; --accent: #f2b81c; --accent-soft: #3a2f10; --green: #5cc27c; --green-soft: #183223;
+    --red: #ef6b61; --red-soft: #3b1b19; --blue: #6fa0f0; --blue-soft: #18263d; --violet: #b18ef0; --violet-soft: #2a2140;
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--blue); }
+
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+.brand { font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+.brand .mark { color: var(--accent); font-size: 18px; }
+.project { color: var(--ink-2); }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--panel-2); color: var(--ink-2); border: 1px solid var(--line); white-space: nowrap; }
+.chip.accent { background: var(--accent-soft); color: var(--ink); border-color: transparent; }
+.spacer { flex: 1; }
+nav.tabs { display: flex; gap: 2px; background: var(--panel-2); padding: 3px; border-radius: 8px; }
+nav.tabs button { border: 0; background: transparent; padding: 4px 12px; border-radius: 6px; color: var(--ink-2); }
+nav.tabs button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+.btn { border: 1px solid var(--line); background: var(--panel); padding: 6px 12px; border-radius: 8px; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.small { padding: 3px 9px; font-size: 13px; }
+.btn:focus-visible, nav.tabs button:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main { padding: 16px 20px 40px; }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(165px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+.col { background: var(--panel-2); border-radius: 12px; padding: 10px; min-height: 200px; }
+.col h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 2px 4px 10px; display: flex; justify-content: space-between; }
+.col h2 small { color: var(--ink-3); font-weight: 500; }
+.col .owner { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); text-transform: none; letter-spacing: 0; margin-top: 1px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--shadow); cursor: pointer; display: block; width: 100%; text-align: left; }
+.card:hover { border-color: var(--accent); }
+.card .top { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.card .id { font: 12px var(--mono); color: var(--ink-3); }
+.card .title { font-weight: 600; line-height: 1.3; }
+.card .next { font-size: 12px; line-height: 1.35; color: var(--ink-2); margin-top: 6px; display: flex; gap: 6px; align-items: baseline; }
+.card .next .who { flex-shrink: 0; }
+.type-fix { background: var(--red-soft); color: var(--red); border-color: transparent; }
+.type-feature { background: var(--blue-soft); color: var(--blue); border-color: transparent; }
+.type-epic { background: var(--violet-soft); color: var(--violet); border-color: transparent; }
+.who { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 4px; }
+.who-pm { background: var(--violet-soft); color: var(--violet); }
+.who-designer { background: var(--blue-soft); color: var(--blue); }
+.who-eng, .who-agent { background: var(--green-soft); color: var(--green); }
+.who-human { background: var(--red-soft); color: var(--red); }
+.progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.progress > i { display: block; height: 100%; background: var(--green); }
+.approvals { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+.empty { color: var(--ink-3); font-size: 13px; padding: 8px 4px; }
+.hero { max-width: 560px; margin: 60px auto; text-align: center; color: var(--ink-2); }
+.hero h1 { color: var(--ink); font-size: 22px; }
+
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 10; display: none; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); background: var(--panel); z-index: 11; border-left: 1px solid var(--line); display: none; flex-direction: column; }
+.drawer.open, .drawer-backdrop.open { display: flex; }
+.drawer header { position: static; }
+.drawer .body { overflow: auto; padding: 16px 20px 40px; flex: 1; }
+.drawer h1 { font-size: 18px; margin: 0; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.actions label { font-size: 12px; color: var(--ink-2); }
+select { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 8px; }
+.cmd { font: 12px var(--mono); background: var(--panel); border: 1px dashed var(--line); padding: 4px 8px; border-radius: 6px; }
+
+.md h1 { font-size: 20px; } .md h2 { font-size: 16px; margin-top: 24px; padding-bottom: 4px; border-bottom: 1px solid var(--line); } .md h3 { font-size: 14px; }
+.md code { font: 12.5px var(--mono); background: var(--panel-2); padding: 1px 4px; border-radius: 4px; }
+.md pre { background: var(--panel-2); padding: 12px; border-radius: 8px; overflow: auto; } .md pre code { background: none; padding: 0; }
+.md table { border-collapse: collapse; width: 100%; font-size: 13px; } .md th, .md td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+.md blockquote { margin: 0; padding: 2px 12px; border-left: 3px solid var(--accent); color: var(--ink-2); background: var(--accent-soft); border-radius: 0 6px 6px 0; }
+.md em { color: var(--ink-2); }
+textarea.editor { width: 100%; min-height: 60vh; font: 13px/1.55 var(--mono); padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); resize: vertical; }
+.tasks { list-style: none; padding: 0; margin: 0; }
+.tasks li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.tasks .ok { color: var(--green); font-weight: 700; } .tasks .todo { color: var(--ink-3); }
+.tasks small { color: var(--ink-2); display: block; }
+.history { list-style: none; padding: 0; font-size: 13px; } .history li { padding: 6px 0; border-bottom: 1px solid var(--line); } .history time { color: var(--ink-3); font: 12px var(--mono); margin-right: 8px; }
+
+.context { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+.context .list button { display: flex; justify-content: space-between; width: 100%; border: 0; background: transparent; text-align: left; padding: 8px 10px; border-radius: 8px; color: var(--ink-2); }
+.context .list button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+.context .doc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 24px; min-width: 0; }
+.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; }
+
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); padding: 20px; width: min(460px, calc(100% - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog h2 { margin: 0 0 12px; font-size: 17px; }
+.field { display: grid; gap: 4px; margin-bottom: 12px; } .field span { font-size: 12px; color: var(--ink-2); }
+.field input, .field select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg label { border: 1px solid var(--line); border-radius: 8px; padding: 8px; cursor: pointer; font-size: 13px; }
+.seg label small { display: block; color: var(--ink-3); font-size: 11px; }
+.seg input { position: absolute; opacity: 0; }
+.seg input:checked + label, .seg label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+.toast.show { opacity: 1; }
+@media (max-width: 720px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  .context { grid-template-columns: 1fr; }
+  .context .list { display: flex; overflow-x: auto; gap: 4px; }
+  .context .list button { white-space: nowrap; width: auto; }
+  .board { grid-auto-columns: 82%; }
+  header .spacer { display: none; }
+  #whoami { margin-left: auto; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark">▲</span> factory</div>
+  <span class="project" id="project"></span>
+  <span class="chip accent" id="autonomy" title="Autonomy level: set in .factory/factory.json"></span>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-view="board">Board</button>
+    <button role="tab" aria-selected="false" data-view="context">Context</button>
+  </nav>
+  <span class="spacer"></span>
+  <button class="btn" id="whoami" title="Name used for approvals"></button>
+  <button class="btn primary" id="newBtn">+ New</button>
+</header>
+<main id="main"></main>
+
+<div class="drawer-backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" aria-label="Feature details"></aside>
+
+<dialog id="newDialog">
+  <form method="dialog" id="newForm">
+    <h2>New feature or fix</h2>
+    <div class="field"><span>What should change?</span><input name="title" required placeholder="e.g. Let users save carts for later" autofocus></div>
+    <div class="field"><span>Size</span>
+      <div class="seg">
+        <label><input type="radio" name="type" value="fix">Fix<small>bug / small change</small></label>
+        <label><input type="radio" name="type" value="feature" checked>Feature<small>full pipeline</small></label>
+        <label><input type="radio" name="type" value="epic">Epic<small>split later</small></label>
+      </div>
+    </div>
+    <div class="field"><span>Owner (optional)</span><input name="owner" placeholder="Who drives this?"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Create</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const TOKEN = '__FACTORY_TOKEN__';
+const COLUMNS = [
+  ['spec', 'Spec', 'PM'], ['design', 'Design', 'designer · eng'], ['plan', 'Plan', 'eng'], ['build', 'Build', 'agent'],
+  ['verify', 'Verify', 'agent'], ['review', 'Review', 'agent + human'], ['ship', 'Ship', 'eng'], ['done', 'Done', ''],
+];
+let S = null, view = 'board', openId = null, drawerTab = 'spec', editing = false, ctxPath = null, ctxEditing = false;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const me = () => { try { return localStorage.getItem('factory.me') || ''; } catch { return ''; } };
+const setMe = (v) => { try { localStorage.setItem('factory.me', v); } catch {} };
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', 'x-factory-token': TOKEN, ...(opts.headers || {}) } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200); }
+async function copy(text) { try { await navigator.clipboard.writeText(text); toast('Copied: paste it into Claude Code'); } catch { toast(text); } }
+
+// ---- tiny markdown renderer (headings, lists, code, tables, quotes, inline) ----
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+    .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+function md(src) {
+  const lines = src.replace(/<!--[\s\S]*?-->/g, '').split('\n');
+  let html = '', i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) { let code = []; i++; while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]); i++; html += `<pre><code>${esc(code.join('\n'))}</code></pre>`; continue; }
+    const h = /^(#{1,4})\s+(.*)/.exec(l); if (h) { html += `<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`; i++; continue; }
+    if (/^\s*[-*]{3,}\s*$/.test(l)) { html += '<hr>'; i++; continue; }
+    if (/^\|/.test(l)) { const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]); const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const body = rows.filter((r, k) => k !== 1 || !/^[|\s:-]+$/.test(r)); html += '<table>' + body.map((r, k) => `<tr>${cells(r).map((c) => k ? `<td>${inline(c)}</td>` : `<th>${inline(c)}</th>`).join('')}</tr>`).join('') + '</table>'; continue; }
+    if (/^>\s?/.test(l)) { const q = []; while (i < lines.length && /^>\s?/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, '')); html += `<blockquote>${md(q.join('\n'))}</blockquote>`; continue; }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) { const ordered = /^\s*\d+\./.test(l); const items = []; while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ''));
+      html += `<${ordered ? 'ol' : 'ul'}>${items.map((t) => `<li>${inline(t.replace(/^\[( |x)\]\s*/i, (m, c) => c === ' ' ? '☐ ' : '☑ '))}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`; continue; }
+    if (!l.trim()) { i++; continue; }
+    const para = []; while (i < lines.length && lines[i].trim() && !/^(#|```|\||>|\s*([-*]|\d+\.)\s)/.test(lines[i])) para.push(lines[i++]);
+    html += `<p>${para.map(inline).join('<br>')}</p>`;
+  }
+  return html;
+}
+
+// ---- rendering ----
+function card(f) {
+  const tasks = f.tasks || [], done = tasks.filter((t) => t.passes).length;
+  const ap = Object.keys(f.approvals || {});
+  return `<button class="card" data-id="${esc(f.id)}">
+    <div class="top"><span class="id">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span>${f.blocked ? '<span class="chip type-fix">blocked</span>' : ''}</div>
+    <div class="title">${esc(f.title)}</div>
+    ${tasks.length ? `<div class="progress" title="${done}/${tasks.length} tasks passing"><i style="width:${(done / tasks.length) * 100}%"></i></div>` : ''}
+    ${f.next?.text && f.status !== 'done' ? `<div class="next">${f.next.who ? `<span class="who who-${esc(f.next.who)}">${esc(f.next.who)}</span>` : ''}${esc(f.next.text)}</div>` : ''}
+    ${ap.length ? `<div class="approvals">${ap.map((a) => `<span class="chip" title="by ${esc(f.approvals[a].by)}">✓ ${esc(a)}</span>`).join('')}</div>` : ''}
+  </button>`;
+}
+function renderBoard() {
+  if (!S.features.length) {
+    return `<div class="hero"><h1>No features yet</h1><p>Every change in this project flows through the factory: spec, design, plan, build, verify, review, ship.</p>
+      <p><button class="btn primary" onclick="newFeature()">+ Start the first feature</button></p>
+      <p style="font-size:13px">Developers can also type <code>/factory-new &lt;idea&gt;</code> in Claude Code.</p></div>`;
+  }
+  return `<div class="board">${COLUMNS.map(([key, label, owner]) => {
+    const items = S.features.filter((f) => f.status === key);
+    return `<section class="col" aria-label="${label}"><h2><span>${label} <span class="owner">${owner}</span></span><small>${items.length}</small></h2>${items.map(card).join('') || '<div class="empty">—</div>'}</section>`;
+  }).join('')}</div>`;
+}
+async function renderContext() {
+  ctxPath ??= S.context[0]?.path;
+  const list = S.context.map((c) => `<button aria-selected="${c.path === ctxPath}" data-ctx="${esc(c.path)}"><span>${esc(c.name)}</span>${c.todo ? '<span class="chip accent">todo</span>' : ''}</button>`).join('');
+  let doc = '';
+  if (ctxPath) {
+    const { content } = await api(`/api/file?path=${encodeURIComponent(ctxPath)}`);
+    doc = ctxEditing
+      ? `<div class="row"><code>${esc(ctxPath)}</code><span><button class="btn small" onclick="ctxEditing=false;render()">Cancel</button> <button class="btn small primary" onclick="saveCtx()">Save</button></span></div><textarea class="editor" id="ctxEditor">${esc(content)}</textarea>`
+      : `<div class="row"><code>${esc(ctxPath)}</code><button class="btn small" onclick="ctxEditing=true;render()">Edit</button></div><div class="md">${md(content)}</div>`;
+  }
+  return `<div class="context"><div class="list">${list}</div><div class="doc">${doc}</div></div>`;
+}
+async function render() {
+  $('#project').textContent = S.config.project;
+  $('#autonomy').textContent = S.autonomyLabel || `L${S.config.autonomy}`;
+  $('#whoami').textContent = me() ? `👤 ${me()}` : 'Set your name';
+  document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === view));
+  if (!(view === 'context' && ctxEditing)) $('#main').innerHTML = view === 'board' ? renderBoard() : await renderContext();
+  if (openId) await renderDrawer();
+}
+async function renderDrawer() {
+  const f = S.features.find((x) => x.id === openId);
+  if (!f) return closeDrawer();
+  const d = $('#drawer');
+  if (editing && d.classList.contains('open')) return; // don't clobber an open editor
+  const dir = `.factory/features/${f.dir}`;
+  let body = '';
+  if (drawerTab === 'spec' || drawerTab === 'progress') {
+    const { content } = await api(`/api/file?path=${encodeURIComponent(`${dir}/${drawerTab}.md`)}`).catch(() => ({ content: '_Missing file._' }));
+    body = drawerTab === 'spec' && editing
+      ? `<textarea class="editor" id="specEditor">${esc(content)}</textarea><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" onclick="editing=false;renderDrawer()">Cancel</button><button class="btn primary" onclick="saveSpec('${esc(dir)}')">Save spec</button></div>`
+      : `${drawerTab === 'spec' ? '<div class="row" style="justify-content:flex-end"><button class="btn small" onclick="editing=true;renderDrawer()">Edit spec</button></div>' : ''}<div class="md">${md(content)}</div>`;
+  } else if (drawerTab === 'tasks') {
+    const t = f.tasks || [];
+    body = t.length ? `<ul class="tasks">${t.map((x) => `<li><span class="${x.passes ? 'ok' : 'todo'}">${x.passes ? '✓' : '○'}</span><div><strong>${esc(x.id)}</strong> ${esc(x.title)}<small>${x.covers ? 'covers ' + esc(x.covers.join(', ')) + ' · ' : ''}verify: ${esc(x.verify || '—')}</small>${x.notes ? `<small>${esc(x.notes)}</small>` : ''}</div></li>`).join('')}</ul>`
+      : '<p class="empty">No tasks yet. The plan station writes them.</p>';
+  } else {
+    body = `<ul class="history">${(f.history || []).slice().reverse().map((h) => `<li><time>${esc((h.at || '').slice(0, 16).replace('T', ' '))}</time><strong>${esc(h.station)}</strong> · ${esc(h.note)}</li>`).join('')}</ul>`;
+  }
+  const appr = ['spec', 'design', 'plan'].map((s) => f.approvals?.[s]
+    ? `<span class="chip" title="${esc(f.approvals[s].at)}">✓ ${s} · ${esc(f.approvals[s].by)}</span>`
+    : `<button class="btn small" onclick="approveStage('${s}')">Approve ${s}</button>`).join('');
+  d.innerHTML = `
+    <header><div style="min-width:0;flex:1"><div class="top" style="display:flex;gap:6px;align-items:center"><span class="id" style="font:12px var(--mono);color:var(--ink-3)">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span><span class="chip">${esc(f.status)}</span>${f.owner ? `<span class="chip">👤 ${esc(f.owner)}</span>` : ''}</div><h1>${esc(f.title)}</h1></div><button class="btn" onclick="closeDrawer()" aria-label="Close">✕</button></header>
+    <div class="actions">${appr}<span class="spacer"></span>
+      <label>Station <select id="moveSel">${COLUMNS.map(([k, l]) => `<option value="${k}" ${k === f.status ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    ${f.next?.cmd ? `<div class="actions"><label>Next</label><span>${esc(f.next.text)}</span><code class="cmd">${esc(f.next.cmd)}</code><button class="btn small" onclick="copy(${esc(JSON.stringify(f.next.cmd))})">Copy</button>${S.config.autonomy >= 3 && ['plan','build','verify','review'].includes(f.status) ? `<button class="btn small" onclick="copy(${esc(JSON.stringify(f.goal))})">Copy /goal</button>` : ''}</div>` : ''}
+    <nav class="tabs" style="margin:12px 20px 0;align-self:flex-start">${['spec', 'tasks', 'progress', 'history'].map((t) => `<button aria-selected="${t === drawerTab}" data-dtab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</nav>
+    <div class="body">${body}</div>`;
+  d.classList.add('open'); $('#backdrop').classList.add('open');
+  $('#moveSel').onchange = async (e) => { await api(`/api/features/${f.id}/move`, { method: 'POST', body: JSON.stringify({ status: e.target.value, note: `Moved to ${e.target.value} from dashboard by ${me() || 'someone'}` }) }); toast(`Moved to ${e.target.value}`); refresh(); };
+}
+
+// ---- actions ----
+function openDrawer(id) { openId = id; drawerTab = 'spec'; editing = false; renderDrawer(); }
+function closeDrawer() { openId = null; editing = false; $('#drawer').classList.remove('open'); $('#backdrop').classList.remove('open'); }
+async function saveSpec(dir) { await api('/api/file', { method: 'PUT', body: JSON.stringify({ path: `${dir}/spec.md`, content: $('#specEditor').value }) }); editing = false; toast('Spec saved'); refresh(); }
+async function saveCtx() { await api('/api/file', { method: 'PUT', body: JSON.stringify({ path: ctxPath, content: $('#ctxEditor').value }) }); ctxEditing = false; toast('Saved'); refresh(); }
+function askName() { const n = prompt('Your name (used when you approve things):', me()); if (n !== null) { setMe(n.trim()); render(); } return me(); }
+async function approveStage(stage) {
+  const by = me() || askName(); if (!by) return;
+  await api(`/api/features/${openId}/approve`, { method: 'POST', body: JSON.stringify({ stage, by }) }); toast(`${stage} approved`); refresh();
+}
+function newFeature() { $('#newForm').reset(); $('#newDialog').showModal(); }
+$('#newDialog').addEventListener('close', async () => {
+  if ($('#newDialog').returnValue !== 'ok') return;
+  const fd = new FormData($('#newForm'));
+  try { const r = await api('/api/features', { method: 'POST', body: JSON.stringify(Object.fromEntries(fd)) }); toast(`Created ${r.id}`); await refresh(); openDrawer(r.id); }
+  catch (e) { toast(e.message); }
+});
+$('#newBtn').onclick = newFeature;
+$('#whoami').onclick = askName;
+$('#backdrop').onclick = closeDrawer;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !editing) closeDrawer(); });
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('.card'); if (c) return openDrawer(c.dataset.id);
+  const v = e.target.closest('[data-view]'); if (v) { view = v.dataset.view; render(); }
+  const t = e.target.closest('[data-dtab]'); if (t) { drawerTab = t.dataset.dtab; editing = false; renderDrawer(); }
+  const x = e.target.closest('[data-ctx]'); if (x) { ctxPath = x.dataset.ctx; ctxEditing = false; render(); }
+});
+
+async function refresh() {
+  try {
+    const next = await api('/api/state');
+    const changed = JSON.stringify(next) !== JSON.stringify(S);
+    S = next; if (changed) await render();
+  } catch (e) { toast('Dashboard lost connection: is `factory ui` still running?'); }
+}
+refresh();
+setInterval(() => { if (!document.hidden && !editing && !ctxEditing) refresh(); }, 3000);
+</script>
+</body>
+</html>
