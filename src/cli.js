@@ -261,6 +261,15 @@ export function status(root, opts = {}) {
   console.log();
 }
 
+// ---- watch -------------------------------------------------------------------
+
+export async function watch(root, opts = {}) {
+  loadConfig(root);
+  const next = await (await import('./tui.js')).watch(root, opts);
+  if (next?.action === 'step') return step(root, next.station, next.id);
+  if (next?.action === 'ui') return (await import('./server.js')).serve(root, {});
+}
+
 // ---- new / approve / move ----------------------------------------------------
 
 export async function newFeature(root, title, opts) {
@@ -550,6 +559,7 @@ export async function home(root) {
         options: [
           { value: 'new', label: 'Start a new feature or fix' },
           features.length && { value: 'open', label: 'Work on a feature', hint: 'approve, move, autopilot, open in Claude' },
+          features.length && { value: 'watch', label: 'Watch the line', hint: 'live view in the terminal' },
           { value: 'ui', label: 'Open the dashboard', hint: 'browser UI for PMs and designers' },
           hasCommand('claude') && { value: 'claude', label: 'Open Claude Code at the front door', hint: '/buildline' },
           { value: 'models', label: 'Choose models per station', hint: 'which model plans, builds and checks' },
@@ -562,6 +572,7 @@ export async function home(root) {
     );
     if (action === 'exit') return p.outro('Happy building.');
     if (action === 'new') await newFeature(root, null, {});
+    if (action === 'watch') return watch(root, {});
     if (action === 'ui') return (await import('./server.js')).serve(root, {});
     if (action === 'claude') return launchClaude(root, ['/buildline']);
     if (action === 'models') saveModels(root, loadConfig(root), await pickModels(loadConfig(root)));

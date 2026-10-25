@@ -18,6 +18,7 @@ ${pc.bold('Commands')}
   ${pc.cyan('new')} "<title>"            open a feature  ${pc.dim('--type fix|feature|epic  --owner <name>  --parent <id>')}
   ${pc.cyan('approve')} <id> <stage>     record a human approval (spec | design | plan)  ${pc.dim('--by <name>')}
   ${pc.cyan('move')} <id> <station>      move a feature to a station  ${pc.dim('--note "<why>"')}
+  ${pc.cyan('watch')}                    live view of the line in your terminal  ${pc.dim('--shipped  --once  --no-intro')}
   ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open')}
   ${pc.cyan('step')} <station> [id]      open a station in the CLI and model set for it  ${pc.dim('--model <m>  --headless  --print')}
   ${pc.cyan('models')}                   choose models per station  ${pc.dim('set <station|phase> <model> · check')}
@@ -71,13 +72,16 @@ const { values: opts, positionals } = parseArgs({
     headless: { type: 'boolean' },
     print: { type: 'boolean' },
     json: { type: 'boolean' },
+    once: { type: 'boolean' },
+    shipped: { type: 'boolean' },
+    'no-intro': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
     version: { type: 'boolean', short: 'v' },
   },
 });
 
 const root = path.resolve(opts.cwd || process.cwd());
-const o = { ...opts, dryRun: opts['dry-run'], ci: opts['no-ci'] ? false : opts.ci, open: !opts['no-open'] };
+const o = { ...opts, dryRun: opts['dry-run'], ci: opts['no-ci'] ? false : opts.ci, open: !opts['no-open'], intro: !opts['no-intro'] };
 const [cmd, ...rest] = positionals;
 
 async function main() {
@@ -99,6 +103,10 @@ async function main() {
     case 'move':
       if (rest.length < 2) throw new Error('Usage: buildline move <id> <station>');
       return cli.moveFeature(root, rest[0], rest[1], o);
+    case 'watch':
+    case 'top':
+    case 'tui':
+      return cli.watch(root, o);
     case 'ui':
     case 'dashboard':
       return (await import('../src/server.js')).serve(root, o);

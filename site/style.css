@@ -175,3 +175,5 @@ ul.checks li::before { content: "✓"; position: absolute; left: 0; top: 1px; wi
   .level:last-child { border-bottom: 0; }
   .cmd { font-size: 15px; }
 }
+.shot.term-shot { padding: 32px 0 0; }
+.term-shot img { display: block; width: 100%; max-width: 1031px; height: auto; margin: 0 auto; border-radius: 14px; }

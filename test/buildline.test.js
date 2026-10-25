@@ -207,3 +207,19 @@ test('models: parseModelList expands phases and rejects unknown stations', () =>
   assert.throws(() => parseModelList('planing=fable'), /Unknown station or phase/);
   assert.throws(() => parseModelList('plan'), /station=model/);
 });
+
+test('watch: one frame shows every feature on its track, models and events', () => {
+  const root = tmp();
+  install(root, { models: { plan: 'fable', build: 'claude-opus-5-5' } });
+  const a = createFeature(root, { title: 'Saved carts' });
+  approve(a, 'spec', 'Maya');
+  setStatus(a, 'build');
+  createFeature(root, { title: 'Fix rounding', type: 'fix' });
+  const out = spawnSync(process.execPath, [bin, 'watch', '-C', root], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } }).stdout;
+  assert.match(out, /THE LINE/);
+  assert.match(out, /001\s+●━+●━+●━+◉/); // spec, design, plan behind it, build is current
+  assert.match(out, /002\s+·┄+·┄+·┄+◉/); // a fix skips the planning stations
+  assert.match(out, /fable .* opus-5-5/);
+  assert.match(out, /spec approved by Maya/);
+  assert.match(out, /❯ \/buildline-build 001/);
+});

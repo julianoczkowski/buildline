@@ -20,7 +20,7 @@ independent verification, and a clear place for developers, designers and produc
 npx buildline
 ```
 
-**[Website & docs](https://julianoczkowski.github.io/buildline/)** · [Quick start](#quick-start) · [How it works](#how-it-works) · [Models per station](#models-per-station) · [Dashboard](#the-dashboard)
+**[Website & docs](https://julianoczkowski.github.io/buildline/)** · [Quick start](#quick-start) · [How it works](#how-it-works) · [Models per station](#models-per-station) · [Watch](#watch-the-line) · [Dashboard](#the-dashboard)
 
 </div>
 
@@ -128,6 +128,16 @@ Instructions in prose are advice. These are enforced:
 
 Start at 2. Raise it as your gates and acceptance scenarios earn trust. [More on autonomy →](docs/autonomy.md)
 
+## Watch the line
+
+`npx buildline watch` is the same picture for the terminal: every feature on its own track through the stations, updating live as agents and people move work along.
+
+<img alt="buildline watch: features on tracks through spec, design, plan, build, verify, review and ship, with an inspector and live event log" src="docs/assets/watch.png">
+
+- a **comet** on the track means an agent can work on it now; a **blinking dot** means it waits on a PM, designer or engineer
+- the model under each station is the one that runs it
+- `↑↓` to inspect tasks and history, `⏎` to open the station on its model, `a` to approve, `q` to quit
+
 ## The dashboard
 
 `npx buildline ui` opens a local board so people who don't live in a terminal can take part:
@@ -181,6 +191,7 @@ npx buildline status                 the board in your terminal  --json
 npx buildline new "<title>"          open a feature  --type fix|feature|epic
 npx buildline approve <id> <stage>   record an approval (spec | design | plan)
 npx buildline ui                     dashboard
+npx buildline watch                  live view of the line in the terminal
 npx buildline step <station> [id]    open a station on its model  --headless --model
 npx buildline models                 choose models  set <station|phase> <model> · check
 npx buildline run <id>               autopilot with Claude Code /goal  --headless

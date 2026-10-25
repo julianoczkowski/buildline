@@ -14,6 +14,7 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | `new "<title>"` | Open a feature. Prompts for anything missing. | `-t/--type fix\|feature\|epic`, `--owner <name>`, `--parent <id>` |
 | `approve <id> <stage>` | Record a human approval for `spec`, `design` or `plan`. | `--by <name>` (defaults to `git config user.name`) |
 | `move <id> <station>` | Move a feature to a station (`spec … done`). | `--note "<why>"` |
+| `watch` (`top`) | Live view of the line in the terminal: tracks, models, tasks, events. Keys: `↑↓` select, `⏎` open the station, `a` approve, `u` dashboard, `s` shipped, `q` quit. | `--shipped`, `--once`, `--no-intro` |
 | `ui` (`dashboard`) | Local web dashboard on `127.0.0.1:4545`. | `--port <n>`, `--no-open` |
 | `step <station> [id]` | Open a station in the CLI and model it's routed to ([models](models.md)). | `-m/--model <m>`, `--headless`, `--print` |
 | `models` | Pick models per station or phase (interactive). `models set <station\|phase> <model>`, `models check` to see what each resolves to. | `--json` |
