@@ -6,7 +6,7 @@ import pc from 'picocolors';
 import { detect, describeStack } from './detect.js';
 import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRemove, defaultGates } from './install.js';
 import { loadManifest } from './files.js';
-import { PRESETS, MODEL_STATIONS, CLIS, modelFor, parseModel, describeModel, stationPrompt, launchArgs, externalClis } from './models.js';
+import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, describeModel, discoverModelOptions, checkModel, stationPrompt, launchArgs, externalClis } from './models.js';
 import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, STATIONS, TYPES } from './features.js';
 
 const LOGO = [
@@ -95,7 +95,7 @@ export async function init(root, opts) {
     team: parseList(opts.team) || ['developer', 'designer', 'pm'],
     ci: opts.ci ?? (stack.git && fs.existsSync(path.join(root, '.github'))),
     gates: defaultGates(stack),
-    models: PRESETS[opts.models]?.models || {},
+    models: parseModelList(opts.models),
   };
 
   if (interactive) {
@@ -127,14 +127,7 @@ export async function init(root, opts) {
       }),
     );
 
-    const preset = bail(
-      await p.select({
-        message: 'Which models should each station use?',
-        options: Object.entries(PRESETS).map(([value, x]) => ({ value, label: x.label, hint: x.hint + (externalClis({ models: x.models }).some((c) => !hasCommand(c)) ? ' (needs ' + externalClis({ models: x.models }).join(', ') + ')' : '') })),
-        initialValue: 'session',
-      }),
-    );
-    answers.models = PRESETS[preset].models;
+    answers.models = await pickModels({ models: answers.models });
 
     const gateChoice = bail(
       await p.select({
@@ -354,35 +347,109 @@ export async function step(root, station, ref, opts = {}) {
   return launch(root, cmd, args);
 }
 
-/** Show or change per-station models. */
-export async function models(root, args, opts) {
-  const config = loadConfig(root);
-  const [action, station, value] = args;
-  if (action === 'set' || action === 'preset') {
-    if (action === 'preset') {
-      if (!PRESETS[station]) throw new Error(`Unknown preset "${station}". Use one of: ${Object.keys(PRESETS).join(', ')}.`);
-      config.models = { ...PRESETS[station].models };
-    } else {
-      if (!station || !['default', ...MODEL_STATIONS].includes(station)) throw new Error(`Usage: buildline models set <default|${MODEL_STATIONS.join('|')}> <model|inherit>`);
-      if (!value) throw new Error('Give a model: opus, sonnet, haiku, a model id, codex[:model], gemini[:model], or inherit.');
-      config.models = { ...(config.models || {}) };
-      if (value === 'inherit') delete config.models[station];
-      else config.models[station] = value;
+/** One model, chosen from what's available right now or typed in. */
+async function pickOne(message, current, options) {
+  const initial = options.some((o) => o.value === (current || 'inherit')) ? current || 'inherit' : '__other';
+  const choice = bail(await p.select({ message, options, initialValue: initial, maxItems: 10 }));
+  if (choice !== '__other') return choice;
+  const typed = bail(
+    await p.text({
+      message: `${message}: model name or id`,
+      placeholder: 'e.g. claude-opus-5-5, fable, codex:gpt-5-codex, gemini:gemini-2.5-pro',
+      initialValue: initial === '__other' ? current || '' : '',
+      validate: (v) => (v?.trim() ? undefined : 'Type a model, or press Esc to go back'),
+    }),
+  );
+  return typed.trim();
+}
+
+/** Interactive model routing: one model everywhere, per phase, or per station. Returns the new models map. */
+export async function pickModels(config) {
+  const current = config.models || {};
+  const spin = p.spinner();
+  spin.start('Looking up available models');
+  const options = await discoverModelOptions(config);
+  spin.stop(`Models available: ${options.filter((o) => !['inherit', '__other'].includes(o.value)).map((o) => o.label).join(', ') || 'none found, type one in'}`);
+  const scope = bail(
+    await p.select({
+      message: 'Which models should the stations use?',
+      options: [
+        { value: 'session', label: 'The session model everywhere', hint: 'whatever you start Claude Code (or another agent) with' },
+        { value: 'phase', label: 'Choose for planning, building and checking', hint: 'e.g. Fable plans, Opus builds' },
+        { value: 'station', label: 'Choose for every station' },
+        Object.keys(current).length && { value: 'keep', label: 'Keep the current setup' },
+      ].filter(Boolean),
+      initialValue: Object.keys(current).length ? 'keep' : 'session',
+    }),
+  );
+  if (scope === 'keep') return current;
+  if (scope === 'session') return {};
+  const models = {};
+  const set = (stations, value) => stations.forEach((st) => value !== 'inherit' && (models[st] = value));
+  if (scope === 'phase') {
+    for (const [key, phase] of Object.entries(PHASES)) {
+      const now = key === 'default' ? current.default : current[phase.stations[0]];
+      set(key === 'default' ? ['default'] : phase.stations, await pickOne(`${phase.label} ${pc.dim('(' + phase.hint + ')')}`, now, options));
     }
-    fs.writeFileSync(configPath(root), JSON.stringify(config, null, 2) + '\n');
-    apply(root, plan(root, config));
-    console.log(`${pc.green('✔')} models updated; skills and subagents refreshed.`);
-  } else if (action) {
-    throw new Error('Usage: buildline models [set <station> <model> | preset <name>]');
+  } else {
+    for (const st of MODEL_STATIONS) set([st], await pickOne(st, current[st] ?? current.default, options));
   }
-  if (opts.json) return console.log(JSON.stringify(Object.fromEntries(MODEL_STATIONS.map((s) => [s, modelFor(config, s)])), null, 2));
+  const missing = externalClis({ models }).filter((c) => !hasCommand(c));
+  if (missing.length) p.log.warn(`Not installed: ${missing.map((c) => `${CLIS[c].label} (${CLIS[c].install})`).join(', ')}`);
+  return models;
+}
+
+function saveModels(root, config, models) {
+  config.models = models;
+  fs.writeFileSync(configPath(root), JSON.stringify(config, null, 2) + '\n');
+  apply(root, plan(root, config));
+}
+
+function printModels(config) {
   console.log(`\n${pc.bold('Models per station')} ${pc.dim('(.buildline/buildline.json › models)')}\n`);
   for (const s of MODEL_STATIONS) {
     const m = modelFor(config, s);
     const missing = m.cli !== 'claude' && !hasCommand(m.cli) ? pc.red(` ${m.cli} not installed`) : '';
     console.log(`  ${s.padEnd(9)} ${m.model || m.cli !== 'claude' ? pc.cyan(describeModel(m)) : pc.dim(describeModel(m))}${missing}`);
   }
-  console.log(`\n  ${pc.dim('Change one:')} buildline models set review codex   ${pc.dim('Presets:')} ${Object.keys(PRESETS).join(', ')}\n`);
+  console.log();
+}
+
+/** Show, pick, set or check per-station models. */
+export async function models(root, args, opts) {
+  const config = loadConfig(root);
+  const [action, target, value] = args;
+  if (action === 'set') {
+    if (!target || !value) throw new Error(`Usage: buildline models set <station|phase> <model>   stations: default, ${MODEL_STATIONS.join(', ')}; phases: planning, building, checking`);
+    const next = { ...(config.models || {}) };
+    const changes = parseModelList(`${target}=${value === 'inherit' ? 'x' : value}`);
+    for (const st of Object.keys(changes)) value === 'inherit' ? delete next[st] : (next[st] = value);
+    saveModels(root, config, next);
+    console.log(`${pc.green('✔')} ${Object.keys(changes).join(', ')} → ${value}. Skills and subagents refreshed.`);
+  } else if (action === 'check') {
+    const values = [...new Set(MODEL_STATIONS.map((s) => modelFor(config, s)).filter((m) => m.model || m.cli !== 'claude').map(describeModel))];
+    if (!values.length) return console.log('Every station uses the session model; nothing to check.');
+    console.log(`\nAsking each tool what these resolve to today ${pc.dim('(one tiny request per Claude model)')}\n`);
+    let bad = 0;
+    for (const v of values) {
+      const r = checkModel(v, { cwd: root });
+      if (!r.ok) bad++;
+      console.log(`  ${r.ok ? pc.green('✔') : pc.red('✘')} ${v.padEnd(24)} ${r.ok ? pc.dim('→ ' + r.resolved + (r.note ? ` (${r.note})` : '')) : pc.red(r.error)}`);
+    }
+    console.log();
+    if (bad) process.exitCode = 1;
+    return;
+  } else if (action) {
+    throw new Error('Usage: buildline models [set <station|phase> <model> | check]');
+  } else if (!opts.json && process.stdout.isTTY && process.stdin.isTTY) {
+    printModels(config);
+    const next = await pickModels(config);
+    saveModels(root, config, next);
+    p.log.success('Saved. Skills and subagents refreshed.');
+  }
+  if (opts.json) return console.log(JSON.stringify(Object.fromEntries(MODEL_STATIONS.map((s) => [s, modelFor(config, s)])), null, 2));
+  printModels(config);
+  console.log(`  ${pc.dim('Change:')} buildline models   ${pc.dim('or')} buildline models set planning fable   ${pc.dim('Verify:')} buildline models check\n`);
 }
 
 export async function run(root, ref, opts) {
@@ -485,6 +552,7 @@ export async function home(root) {
           features.length && { value: 'open', label: 'Work on a feature', hint: 'approve, move, autopilot, open in Claude' },
           { value: 'ui', label: 'Open the dashboard', hint: 'browser UI for PMs and designers' },
           hasCommand('claude') && { value: 'claude', label: 'Open Claude Code at the front door', hint: '/buildline' },
+          { value: 'models', label: 'Choose models per station', hint: 'which model plans, builds and checks' },
           { value: 'gates', label: 'Run quality gates' },
           { value: 'doctor', label: 'Check setup (doctor)' },
           { value: 'update', label: 'Update Buildline files' },
@@ -496,6 +564,7 @@ export async function home(root) {
     if (action === 'new') await newFeature(root, null, {});
     if (action === 'ui') return (await import('./server.js')).serve(root, {});
     if (action === 'claude') return launchClaude(root, ['/buildline']);
+    if (action === 'models') saveModels(root, loadConfig(root), await pickModels(loadConfig(root)));
     if (action === 'gates') gates(root, []);
     if (action === 'doctor') doctor(root);
     if (action === 'update') await update(root, {});

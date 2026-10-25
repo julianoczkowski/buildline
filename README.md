@@ -92,19 +92,20 @@ Role guides: [product managers](docs/for-product-managers.md) · [designers](doc
 
 ## Models per station
 
-Use the strongest model where judgement matters and a fast one where the work is well specified. You can also have a second vendor review the diff.
+Pick the model for each job: Fable to plan, Opus to build, Codex to review, or anything else your tools support. Buildline doesn't ship a model list. The picker reads what's available from your installed Claude Code and the Anthropic API, and you can always type a model in, so new models work on day one.
 
 ```bash
-npx buildline models preset balanced     # Opus specs, designs, plans, reviews · Sonnet builds and verifies
-npx buildline models set review codex    # Codex reviews every diff as a second opinion
-npx buildline models                     # see what each station uses
+npx buildline models                               # pick by phase or per station
+npx buildline models set planning fable            # spec, design, plan
+npx buildline models set building claude-opus-5-5  # build
+npx buildline models check                         # what each choice resolves to today
 ```
 
 ```json
-"models": { "default": "sonnet", "plan": "opus", "review": "codex:gpt-5-codex", "verify": "gemini" }
+"models": { "plan": "fable", "build": "claude-opus-5-5", "review": "codex", "default": "sonnet" }
 ```
 
-Claude Code skills and subagents switch model per station. A station routed to Codex or Gemini is handed off automatically, and `buildline step <station> <id>` opens it in the right tool. [More on models →](docs/models.md)
+Claude Code skills and subagents switch model per station. A station set to Codex or Gemini is handed off automatically, and `buildline step <station> <id>` opens it in the right tool. [More on models →](docs/models.md)
 
 ## Guardrails that hold
 
@@ -181,7 +182,7 @@ npx buildline new "<title>"          open a feature  --type fix|feature|epic
 npx buildline approve <id> <stage>   record an approval (spec | design | plan)
 npx buildline ui                     dashboard
 npx buildline step <station> [id]    open a station on its model  --headless --model
-npx buildline models                 models per station  set <station> <model> · preset <name>
+npx buildline models                 choose models  set <station|phase> <model> · check
 npx buildline run <id>               autopilot with Claude Code /goal  --headless
 npx buildline gates                  run quality gates
 npx buildline doctor                 check the setup

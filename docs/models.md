@@ -1,26 +1,46 @@
 # Models per station
 
-Different work suits different models. Planning and review benefit from the strongest reasoning; building is many small, well-specified steps that a faster model handles well; a second vendor reviewing the diff catches mistakes the first one is blind to. Buildline lets you route each station on its own.
+Different work suits different models. You might want Fable to write specs and plans, Opus to build, and a second vendor to review the diff. Buildline lets you choose a model for each station. It doesn't ship a model list of its own, so new models work the day your tools support them.
 
-## Set it up
-
-During `npx buildline init` pick a preset, or change it any time:
+## Choose your models
 
 ```bash
-npx buildline models                         # show what each station uses
-npx buildline models preset balanced         # apply a preset
-npx buildline models set review codex        # one station
-npx buildline models set build inherit       # back to the session model
+npx buildline models
 ```
 
-Every change refreshes the skills and subagents straight away.
+The picker shows what's available right now:
 
-| Preset | What it does |
-|---|---|
-| `session` *(default)* | Every station uses whatever model you start the agent with. |
-| `balanced` | Opus for spec, design, plan and review; Sonnet for build and verify. |
-| `budget` | Sonnet everywhere, Haiku for intake. |
-| `second` | Balanced, and Codex reviews every diff. |
+- **Claude Code aliases**, read from the `claude` you have installed (today: `fable`, `opus`, `sonnet`). An alias always means the newest model in that family, so `fable` moves to the next Fable when Claude Code does.
+- **Every Claude model id** from Anthropic's models API, when `ANTHROPIC_API_KEY` is set.
+- **Codex CLI and Gemini CLI**, when they're installed.
+- **Other…**: type any model name or id. Buildline saves exactly what you type and passes it to the tool.
+
+You choose either **by phase** (planning, building, checking, everything else) or **for every station**. The same picker runs during `npx buildline init`, and from the interactive menu.
+
+Without prompts:
+
+```bash
+npx buildline models set planning fable              # spec, design, plan
+npx buildline models set building claude-opus-5-5    # build
+npx buildline models set checking codex              # verify, review
+npx buildline models set review gemini:gemini-2.5-pro
+npx buildline models set build inherit               # back to the session model
+npx buildline init -y --models planning=fable,building=opus
+```
+
+## Check what your choices resolve to
+
+```bash
+npx buildline models check
+```
+
+```text
+  ✔ fable                    → claude-fable-5-1
+  ✔ claude-opus-5-5          → claude-opus-5-5
+  ✘ claude-opus-9            There's an issue with the selected model …
+```
+
+For each Claude model this sends one tiny request and reports the model that actually answered. That catches typos, models your account can't use, and aliases that have moved on. For Codex and Gemini it checks the CLI is installed.
 
 ## The config
 
@@ -28,10 +48,12 @@ It's one map in `.buildline/buildline.json`:
 
 ```json
 "models": {
-  "default": "sonnet",
-  "plan": "opus",
+  "spec": "fable",
+  "design": "fable",
+  "plan": "fable",
+  "build": "claude-opus-5-5",
   "review": "codex:gpt-5-codex",
-  "verify": "gemini"
+  "default": "sonnet"
 }
 ```
 
@@ -39,32 +61,32 @@ Stations: `onboard`, `new`, `spec`, `design`, `plan`, `build`, `verify`, `review
 
 | Value | Runs on |
 |---|---|
-| `opus`, `sonnet`, `haiku` | Claude Code, that model alias |
+| an alias such as `fable`, `opus`, `sonnet` | Claude Code, the newest model in that family |
 | a full id such as `claude-opus-5-5` | Claude Code, that exact model |
-| `inherit` (or leave it out) | whatever model the session is using |
+| `inherit`, or leave it out | whatever model the session is using |
 | `codex` or `codex:<model>` | [Codex CLI](https://github.com/openai/codex) |
 | `gemini` or `gemini:<model>` | [Gemini CLI](https://github.com/google-gemini/gemini-cli) |
 
-If you edit the file by hand, run `npx buildline update` to apply it.
+Aliases keep up automatically. Full ids pin a model, so nothing changes under you until you update it. If you edit the file by hand, run `npx buildline update` to apply it.
 
 ## How it's applied
 
-- **Claude Code skills** get a `model:` line, so `/buildline-plan` switches to Opus for that skill and back afterwards.
-- **Subagents follow their station**: verify → `buildline-verifier`, review → `buildline-reviewer`, spec → `buildline-spec-critic`, design → `buildline-design-reviewer`, onboard → `buildline-mapper`.
-- **Stations routed to another CLI** hand off. Type `/buildline-review 004` in Claude Code and, if review is set to `codex`, Claude runs `npx buildline step review 004 --headless`, waits, and summarises what Codex did. Codex and Gemini follow the same rule through `AGENTS.md`.
-- **Autopilot** (`buildline run`) starts Claude Code with the build model; verify and review inside the loop use their own models or hand off the same way.
+- **Claude Code skills** get a `model:` line, so `/buildline-plan` runs on Fable even if the session started on Sonnet, and the session goes back to its own model afterwards.
+- **Subagents follow their station**: verify uses `buildline-verifier`, review `buildline-reviewer`, spec `buildline-spec-critic`, design `buildline-design-reviewer`, and onboard `buildline-mapper`.
+- **Stations set to another CLI** are handed off. Type `/buildline-review 004` in Claude Code with review set to `codex`, and Claude runs `npx buildline step review 004 --headless`, waits, and summarises what Codex did. Codex and Gemini follow the same rule through `AGENTS.md`.
+- **Autopilot** (`buildline run`) starts Claude Code on the build model. Verify and review inside the loop use their own models, or hand off the same way.
 
 ## Opening a station directly
 
-`buildline step <station> [id]` opens a station in whatever it is routed to:
+`buildline step <station> [id]` opens a station in whatever it's set to:
 
 ```bash
-npx buildline step plan 004                       # claude --model opus "/buildline-plan 004"
-npx buildline step review 004 --headless          # codex exec … (no chat, edits allowed in the repo)
-npx buildline step spec 004 --model gemini        # one-off override
-npx buildline step build 004 --print              # show the command without running it
+npx buildline step plan 004                  # claude --model fable "/buildline-plan 004"
+npx buildline step review 004 --headless     # codex exec … (no chat, edits allowed in the repo)
+npx buildline step spec 004 --model opus     # one-off override
+npx buildline step build 004 --print         # show the command without running it
 ```
 
-Headless runs may edit files in the project but nothing beyond it: Claude uses `--permission-mode acceptEdits`, Codex `--sandbox workspace-write`, Gemini `--approval-mode auto_edit`.
+Headless runs may edit files in the project but nothing beyond it: Claude uses `--permission-mode acceptEdits`, Codex `--sandbox workspace-write`, and Gemini `--approval-mode auto_edit`.
 
-`npx buildline doctor` warns if a CLI you routed to isn't installed.
+`npx buildline doctor` warns if a CLI you chose isn't installed.

@@ -9,14 +9,14 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | Command | What it does | Options |
 |---|---|---|
 | *(none)* | Interactive menu: status, new feature, work on a feature, dashboard, gates, doctor, update. Offers setup if the factory isn't installed. | |
-| `init` | Detect stack, ask setup questions, preview files, install. | `-y/--yes`, `--agents claude,codex,cursor,gemini,copilot`, `--autonomy 1-4`, `--team developer,designer,pm`, `--models session\|balanced\|budget\|second`, `--ci` / `--no-ci`, `--dry-run`, `--force` |
+| `init` | Detect stack, ask setup questions, preview files, install. | `-y/--yes`, `--agents claude,codex,cursor,gemini,copilot`, `--autonomy 1-4`, `--team developer,designer,pm`, `--models planning=fable,building=opus,…`, `--ci` / `--no-ci`, `--dry-run`, `--force` |
 | `status` (`st`) | Terminal board: station, task progress, who it's waiting on, next command. | `--json` |
 | `new "<title>"` | Open a feature. Prompts for anything missing. | `-t/--type fix\|feature\|epic`, `--owner <name>`, `--parent <id>` |
 | `approve <id> <stage>` | Record a human approval for `spec`, `design` or `plan`. | `--by <name>` (defaults to `git config user.name`) |
 | `move <id> <station>` | Move a feature to a station (`spec … done`). | `--note "<why>"` |
 | `ui` (`dashboard`) | Local web dashboard on `127.0.0.1:4545`. | `--port <n>`, `--no-open` |
 | `step <station> [id]` | Open a station in the CLI and model it's routed to ([models](models.md)). | `-m/--model <m>`, `--headless`, `--print` |
-| `models` | Show models per station. `models set <station> <model>`, `models preset <name>`. | `--json` |
+| `models` | Pick models per station or phase (interactive). `models set <station\|phase> <model>`, `models check` to see what each resolves to. | `--json` |
 | `run [id]` | Autopilot via Claude Code `/goal`, using the build model. Requires autonomy ≥ 3. | `--headless`, `--print`, `--force` |
 | `gates [names…]` | Run quality gates (all, or the named ones). | |
 | `doctor` | Check Node, git, Claude Code, config, models (and the CLIs they need), gates, hooks, managed files, context, features. | |

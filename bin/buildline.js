@@ -20,7 +20,7 @@ ${pc.bold('Commands')}
   ${pc.cyan('move')} <id> <station>      move a feature to a station  ${pc.dim('--note "<why>"')}
   ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open')}
   ${pc.cyan('step')} <station> [id]      open a station in the CLI and model set for it  ${pc.dim('--model <m>  --headless  --print')}
-  ${pc.cyan('models')}                   show models per station  ${pc.dim('set <station> <model> · preset <name>')}
+  ${pc.cyan('models')}                   choose models per station  ${pc.dim('set <station|phase> <model> · check')}
   ${pc.cyan('run')} [id]                 autopilot: build → verify → review with Claude Code /goal  ${pc.dim('--headless  --print')}
   ${pc.cyan('gates')} [names...]         run the quality gates
   ${pc.cyan('doctor')}                   check the setup
@@ -32,7 +32,7 @@ ${pc.bold('Init options')}
   --agents <list>          claude,codex,cursor,gemini,copilot
   --autonomy <1-4>         1 assist · 2 guided · 3 autopilot · 4 dark factory
   --team <list>            developer,designer,pm
-  --models <preset>        session · balanced · budget · second
+  --models <list>          e.g. planning=fable,building=claude-opus-5-5,checking=codex
   --ci / --no-ci           add the GitHub Actions workflow
   --dry-run                show what would change without writing
   --force                  overwrite managed files even if you edited them
@@ -43,7 +43,7 @@ ${pc.bold('Examples')}
   npx buildline init -y --autonomy 3  ${pc.dim('# non-interactive install')}
   npx buildline new "Saved carts"     ${pc.dim('# open a feature')}
   npx buildline run 004               ${pc.dim('# unattended build loop')}
-  npx buildline models set review codex  ${pc.dim('# Codex reviews every diff')}
+  npx buildline models set planning fable  ${pc.dim('# Fable specs, designs and plans')}
   npx buildline step review 004       ${pc.dim('# run one station on its model')}
 `;
 

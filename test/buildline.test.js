@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { detect } from '../src/detect.js';
 import { makeConfig, plan, apply, removePlan, applyRemove } from '../src/install.js';
 import { createFeature, findFeature, approve, setStatus, nextAction, slugify } from '../src/features.js';
-import { parseModel, launchArgs, stationPrompt } from '../src/models.js';
+import { parseModel, parseModelList, launchArgs, stationPrompt } from '../src/models.js';
 
 const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'buildline.js');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'buildline-test-'));
@@ -184,16 +184,26 @@ test('models: per-station routing reaches skills, subagents and launch commands'
   assert.equal(stationPrompt('codex', 'review', '004'), 'Follow .buildline/stations/review.md step by step for feature 004. Project rules are in AGENTS.md.');
 });
 
-test('CLI: models set/preset and step --print', () => {
+test('CLI: models from flags, set by phase, and step --print', () => {
   const root = tmp();
   const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
-  cli('init', '-y', '--models', 'balanced');
-  assert.equal(JSON.parse(read(root, '.buildline/buildline.json')).models.build, 'sonnet');
-  assert.equal(cli('models', 'set', 'build', 'haiku').status, 0);
-  assert.match(read(root, '.claude/skills/buildline-build/SKILL.md'), /^model: haiku$/m);
+  cli('init', '-y', '--models', 'planning=fable,building=claude-opus-5-5');
+  const cfg = () => JSON.parse(read(root, '.buildline/buildline.json')).models;
+  assert.deepEqual(cfg(), { spec: 'fable', design: 'fable', plan: 'fable', build: 'claude-opus-5-5' });
+  assert.match(read(root, '.claude/skills/buildline-plan/SKILL.md'), /^model: fable$/m);
+  assert.match(read(root, '.claude/skills/buildline-build/SKILL.md'), /^model: claude-opus-5-5$/m);
+  assert.equal(cli('models', 'set', 'checking', 'some-model-from-the-future').status, 0);
+  assert.equal(cfg().review, 'some-model-from-the-future'); // any name is accepted; the CLI decides
   assert.equal(cli('models', 'set', 'build', 'inherit').status, 0);
   assert.doesNotMatch(read(root, '.claude/skills/buildline-build/SKILL.md'), /^model:/m);
   cli('new', 'Thing');
-  assert.equal(cli('step', 'plan', '1', '--print').stdout.trim(), 'claude --model opus "/buildline-plan 001"');
-  assert.equal(cli('models', 'preset', 'nope').status, 1);
+  assert.equal(cli('step', 'plan', '1', '--print').stdout.trim(), 'claude --model fable "/buildline-plan 001"');
+  assert.equal(cli('models', 'set', 'nope', 'x').status, 1);
+});
+
+test('models: parseModelList expands phases and rejects unknown stations', () => {
+  assert.deepEqual(parseModelList('checking=codex,default=sonnet'), { verify: 'codex', review: 'codex', default: 'sonnet' });
+  assert.deepEqual(parseModelList(''), {});
+  assert.throws(() => parseModelList('planing=fable'), /Unknown station or phase/);
+  assert.throws(() => parseModelList('plan'), /station=model/);
 });

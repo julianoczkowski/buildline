@@ -12,7 +12,7 @@ npx buildline
 The wizard:
 
 1. **Detects your stack**: languages, frameworks, UI libraries, test tools, package manager, and the commands to lint, type-check, test and build.
-2. **Asks five questions**: which AI tools your team uses, who will use the factory, how much agents may do alone (autonomy), which [models each station uses](models.md), and whether the detected gate commands are right.
+2. **Asks five questions**: which AI tools your team uses, who will use the factory, how much agents may do alone (autonomy), which [models plan, build and check](models.md) (picked from what your tools offer), and whether the detected gate commands are right.
 3. **Shows every file it will create or merge** before writing anything.
 4. Offers to **open Claude Code on the onboarding station** straight away.
 

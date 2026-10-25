@@ -1,6 +1,6 @@
 <main>
 <section class="hero">
-  <a class="badge" href="models.html">New in <b>v{{version}}</b> · models per station →</a>
+  <a class="badge" href="models.html">New in <b>v{{version}}</b> · choose any model per station →</a>
   <h1>An AI software factory for <em>any project</em></h1>
   <p>Buildline installs a spec-driven pipeline that coding agents follow from idea to merged PR, with real quality gates, independent verification, and a clear place for developers, designers and product managers.</p>
   <div class="actions">
@@ -63,28 +63,23 @@
   <div class="split">
     <div>
       <span class="eyebrow">Models per station</span>
-      <h2>The right model for each job</h2>
-      <p class="lede" style="margin-bottom:24px">Use the strongest model where judgement matters and a fast one where the work is well specified. Or hand the review to a different vendor for a second opinion.</p>
+      <h2>Your models, for each job</h2>
+      <p class="lede" style="margin-bottom:24px">Fable to plan, Opus to build, Codex to review, or anything else your tools support. Buildline reads what's available from Claude Code and the Anthropic API, so tomorrow's models show up without an update.</p>
       <ul class="checks">
-        <li><b>Presets</b> for the common setups: same model everywhere, balanced, budget, second opinion.</li>
-        <li><b>Claude Code</b> skills and subagents switch model per station.</li>
+        <li><b>Pick by phase or per station</b>, or type any model name or id.</li>
+        <li><b>Aliases keep up</b>: <code>fable</code> always means the newest Fable. Full ids pin a model.</li>
         <li><b>Codex and Gemini</b> stations are handed off automatically.</li>
       </ul>
       <p style="margin-top:24px"><a class="btn" href="models.html">How models work</a></p>
     </div>
-<pre class="term"><span class="c"># Opus thinks, Sonnet builds</span>
-<span class="k">$</span> npx buildline models preset balanced
-
-<span class="c"># a second vendor reviews every diff</span>
+<pre class="term"><span class="k">$</span> npx buildline models set planning fable
+<span class="k">$</span> npx buildline models set building claude-opus-5-5
 <span class="k">$</span> npx buildline models set review codex
 
-<span class="k">$</span> npx buildline models
-  spec      opus
-  design    opus
-  plan      opus
-  build     sonnet
-  verify    sonnet
-  review    codex</pre>
+<span class="k">$</span> npx buildline models check
+  <span class="k">✔</span> fable            → claude-fable-5-1
+  <span class="k">✔</span> claude-opus-5-5  → claude-opus-5-5
+  <span class="k">✔</span> codex            → installed</pre>
   </div>
 </section>
 

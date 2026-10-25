@@ -26,7 +26,7 @@ Managed files are tracked by content hash in `.buildline/manifest.json`. If you 
 
 **Add project rules.** Write them in `AGENTS.md` *outside* the Buildline block, or in `principles.md` if specs and reviews should be checked against them. For path-specific rules in Claude Code, use `.claude/rules/*.md` with `paths:` frontmatter.
 
-**Change models.** Use `npx buildline models set <station> <model>`, or a preset. Stations can run on Claude models, Codex or Gemini. See [Models per station](models.md).
+**Change models.** Run `npx buildline models` to pick, or `npx buildline models set <station|phase> <model>`. Stations can run on any Claude model, Codex or Gemini. See [Models per station](models.md).
 
 **Add your own subagent or skill.** Put it next to the Buildline ones without the `buildline-` prefix, so updates never touch it.
 
