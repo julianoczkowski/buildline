@@ -14,7 +14,7 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | `new "<title>"` | Open a feature. Prompts for anything missing. | `-t/--type fix\|feature\|epic`, `--owner <name>`, `--parent <id>` |
 | `approve <id> <stage>` | Record a human approval for `spec`, `design` or `plan`. | `--by <name>` (defaults to `git config user.name`) |
 | `move <id> <station>` | Move a feature to a station (`spec … done`). | `--note "<why>"` |
-| `ui` (`dashboard`) | Local web dashboard on `localhost:4545`. | `--port <n>`, `--no-open` |
+| `ui` (`dashboard`) | Local web dashboard on `127.0.0.1:4545`. | `--port <n>`, `--no-open` |
 | `run [id]` | Autopilot via Claude Code `/goal`. Requires autonomy ≥ 3. | `--headless`, `--print`, `--force` |
 | `gates [names…]` | Run quality gates (all, or the named ones). | |
 | `doctor` | Check Node, git, Claude Code, config, gates, hooks, managed files, context, features. | |

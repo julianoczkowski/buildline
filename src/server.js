@@ -135,7 +135,7 @@ export function serve(root, opts = {}) {
   });
 
   server.listen(port, '127.0.0.1', () => {
-    const url = `http://localhost:${port}`;
+    const url = `http://127.0.0.1:${port}`;
     console.log(`\n  ${pc.yellow('▲ factory dashboard')}  ${pc.cyan(url)}\n  ${pc.dim('Ctrl+C to stop. Only reachable from this machine.')}\n`);
     if (opts.open !== false) openBrowser(url);
   });

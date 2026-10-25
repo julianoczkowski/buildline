@@ -252,14 +252,14 @@ async function render() {
   $('#autonomy').textContent = S.autonomyLabel || `L${S.config.autonomy}`;
   $('#whoami').textContent = me() ? `👤 ${me()}` : 'Set your name';
   document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === view));
-  if (!(view === 'context' && ctxEditing)) $('#main').innerHTML = view === 'board' ? renderBoard() : await renderContext();
+  if (!(view === 'context' && ctxEditing && $('#ctxEditor'))) $('#main').innerHTML = view === 'board' ? renderBoard() : await renderContext();
   if (openId) await renderDrawer();
 }
 async function renderDrawer() {
   const f = S.features.find((x) => x.id === openId);
   if (!f) return closeDrawer();
   const d = $('#drawer');
-  if (editing && d.classList.contains('open')) return; // don't clobber an open editor
+  if (editing && d.classList.contains('open') && $('#specEditor')) return; // don't clobber an open editor
   const dir = `.factory/features/${f.dir}`;
   let body = '';
   if (drawerTab === 'spec' || drawerTab === 'progress') {
