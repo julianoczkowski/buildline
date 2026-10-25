@@ -14,7 +14,7 @@ Resolve the feature from `$ARGUMENTS`, or use the most recent feature with statu
 1. `git status` and `git log --oneline -10`: know what's already there; don't build on uncommitted mystery changes without asking.
 2. Read `progress.md` (the last entry tells you where things stand) and `feature.json → tasks`.
 3. Read `spec.md`: Requirements, Acceptance, Design, Plan.
-4. Run `node .factory/bin/gates.mjs`. If gates fail **before** you change anything, record it in `progress.md` and fix or report it first. Don't stack new work on a red baseline.
+4. Run `node .buildline/bin/gates.mjs`. If gates fail **before** you change anything, record it in `progress.md` and fix or report it first. Don't stack new work on a red baseline.
 
 For `fix` features with no tasks: create a single task `T1` ("Reproduce with a failing test, then fix") plus `T2` ("Gates pass and A1 verified").
 
@@ -23,7 +23,7 @@ For `fix` features with no tasks: create a single task `T1` ("Reproduce with a f
 Pick the first task with `"passes": false`.
 
 1. If the task adds behaviour, **write the failing test first** and run it to see it fail for the right reason.
-2. Implement the smallest change that makes it pass. Follow the conventions in `.factory/context/architecture.md` and reuse existing components and utilities before making new ones.
+2. Implement the smallest change that makes it pass. Follow the conventions in `.buildline/context/architecture.md` and reuse existing components and utilities before making new ones.
 3. Run the task's `verify` step **and** the gates. Read the output; don't assume.
 4. For UI work, run the app and look at it (a screenshot via the browser tools if available). Check the states listed in the design.
 5. Only when everything above is green, set `"passes": true` and write in `notes` what you ran and what you observed (one or two lines).
@@ -49,4 +49,4 @@ Append to `progress.md`:
 - Next: T3 (UI list); watch out for the cart total rounding in utils/money.ts
 ```
 
-When every task passes: set status to `verify`, append a `history` entry, and continue with `/factory-verify <id>` (or tell the person to).
+When every task passes: set status to `verify`, append a `history` entry, and continue with `/buildline-verify <id>` (or tell the person to).

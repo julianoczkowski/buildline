@@ -6,22 +6,23 @@ import pc from 'picocolors';
 import { detect, describeStack } from './detect.js';
 import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRemove, defaultGates } from './install.js';
 import { loadManifest } from './files.js';
+import { PRESETS, MODEL_STATIONS, CLIS, modelFor, parseModel, describeModel, stationPrompt, launchArgs, externalClis } from './models.js';
 import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, STATIONS, TYPES } from './features.js';
 
 const LOGO = [
-  pc.yellow('  ┌─┐┌─┐┌─┐┌┬┐┌─┐┬─┐┬ ┬'),
-  pc.yellow('  ├┤ ├─┤│   │ │ │├┬┘└┬┘'),
-  pc.yellow('  └  ┴ ┴└─┘ ┴ └─┘┴└─ ┴ ') + pc.dim(` v${VERSION}`),
+  pc.yellow('  ┌┐ ┬ ┬┬┬  ┌┬┐┬  ┬┌┐┌┌─┐'),
+  pc.yellow('  ├┴┐│ │││   ││││  ││││├┤ '),
+  pc.yellow('  └─┘└─┘┴┴─┘─┴┘┴─┘┴┘└┘└─┘') + pc.dim(` v${VERSION}`),
 ].join('\n');
 
-const configPath = (root) => path.join(root, '.factory', 'factory.json');
+const configPath = (root) => path.join(root, '.buildline', 'buildline.json');
 export const isInstalled = (root) => fs.existsSync(configPath(root));
 
 function loadConfig(root) {
   try {
     return JSON.parse(fs.readFileSync(configPath(root), 'utf8'));
   } catch (err) {
-    throw new Error(`Factory not installed here (or .factory/factory.json is invalid). Run ${pc.cyan('npx factory-cli init')}. ${err.code === 'ENOENT' ? '' : err.message}`);
+    throw new Error(`Buildline not installed here (or .buildline/buildline.json is invalid). Run ${pc.cyan('npx buildline init')}. ${err.code === 'ENOENT' ? '' : err.message}`);
   }
 }
 
@@ -63,7 +64,7 @@ function summarisePlan(plans) {
 export async function init(root, opts) {
   const interactive = !opts.yes && process.stdin.isTTY;
   console.log('\n' + LOGO + '\n');
-  p.intro(pc.bgYellow(pc.black(' factory init ')));
+  p.intro(pc.bgYellow(pc.black(' buildline init ')));
 
   const stack = detect(root);
   const existingConfig = isInstalled(root) ? loadConfig(root) : null;
@@ -94,6 +95,7 @@ export async function init(root, opts) {
     team: parseList(opts.team) || ['developer', 'designer', 'pm'],
     ci: opts.ci ?? (stack.git && fs.existsSync(path.join(root, '.github'))),
     gates: defaultGates(stack),
+    models: PRESETS[opts.models]?.models || {},
   };
 
   if (interactive) {
@@ -124,6 +126,15 @@ export async function init(root, opts) {
         initialValue: 2,
       }),
     );
+
+    const preset = bail(
+      await p.select({
+        message: 'Which models should each station use?',
+        options: Object.entries(PRESETS).map(([value, x]) => ({ value, label: x.label, hint: x.hint + (externalClis({ models: x.models }).some((c) => !hasCommand(c)) ? ' (needs ' + externalClis({ models: x.models }).join(', ') + ')' : '') })),
+        initialValue: 'session',
+      }),
+    );
+    answers.models = PRESETS[preset].models;
 
     const gateChoice = bail(
       await p.select({
@@ -173,33 +184,33 @@ export async function init(root, opts) {
     if (!ok) return p.outro('Nothing was written.');
   }
   apply(root, result);
-  p.log.success(`Factory installed: ${result.plans.filter((x) => x.content).length} files written.`);
+  p.log.success(`Buildline installed: ${result.plans.filter((x) => x.content).length} files written.`);
 
   const steps = [];
   if (config.agents.includes('claude')) {
-    steps.push(`${pc.cyan('claude')} then type ${pc.cyan('/factory-onboard')}   ${pc.dim(stack.empty ? 'interview + scaffold your project' : 'map this codebase into context')}`);
-    steps.push(`${pc.cyan('/factory-new <idea>')}   ${pc.dim('start your first feature')}`);
+    steps.push(`${pc.cyan('claude')} then type ${pc.cyan('/buildline-onboard')}   ${pc.dim(stack.empty ? 'interview + scaffold your project' : 'map this codebase into context')}`);
+    steps.push(`${pc.cyan('/buildline-new <idea>')}   ${pc.dim('start your first feature')}`);
   } else {
-    steps.push(`Ask your agent: ${pc.cyan('"run the factory onboard station"')}`);
+    steps.push(`Ask your agent: ${pc.cyan('"run the Buildline onboard station"')}`);
   }
-  steps.push(`${pc.cyan('npx factory-cli ui')}      ${pc.dim('dashboard for PMs and designers')}`);
-  steps.push(`${pc.cyan('npx factory-cli')}         ${pc.dim('status and menu any time')}`);
+  steps.push(`${pc.cyan('npx buildline ui')}      ${pc.dim('dashboard for PMs and designers')}`);
+  steps.push(`${pc.cyan('npx buildline')}         ${pc.dim('status and menu any time')}`);
   p.note(steps.join('\n'), 'Next steps');
 
   if (interactive && config.agents.includes('claude') && hasCommand('claude')) {
     const launch = bail(await p.confirm({ message: 'Start onboarding in Claude Code now?', initialValue: true }));
     if (launch) {
       p.outro('Opening Claude Code…');
-      return launchClaude(root, ['/factory-onboard']);
+      return launchClaude(root, ['/buildline-onboard']);
     }
   }
-  p.outro(`Read ${pc.cyan('.factory/README.md')} for the role-by-role guide.`);
+  p.outro(`Read ${pc.cyan('.buildline/README.md')} for the role-by-role guide.`);
 }
 
 // ---- update / remove ---------------------------------------------------------
 
 export async function update(root, opts) {
-  if (!opts.quietIntro) p.intro(pc.bgYellow(pc.black(' factory update ')));
+  if (!opts.quietIntro) p.intro(pc.bgYellow(pc.black(' buildline update ')));
   const config = loadConfig(root);
   const manifest = loadManifest(root);
   const result = plan(root, config, { force: opts.force });
@@ -208,23 +219,23 @@ export async function update(root, opts) {
   p.note(lines.join('\n') || 'Everything is up to date.', `v${manifest.version || '?'} → v${VERSION}`);
   if (opts.dryRun) return p.outro('Dry run: nothing was written.');
   apply(root, result);
-  p.outro('Factory updated.');
+  p.outro('Buildline updated.');
 }
 
 export async function remove(root, opts) {
-  p.intro(pc.bgRed(pc.white(' factory remove ')));
+  p.intro(pc.bgRed(pc.white(' buildline remove ')));
   const config = loadConfig(root);
   const result = removePlan(root, config);
   const label = { delete: pc.red('delete'), 'strip-block': pc.cyan('strip '), 'keep-modified': pc.yellow('keep  '), 'keep-user': pc.dim('keep  ') };
   p.note(result.plans.map((x) => `${label[x.action]}  ${x.rel}`).join('\n'), 'Removal plan');
-  p.log.info('Your features, specs, context files, principles and factory.json are kept. Delete .factory/ yourself if you want them gone.');
+  p.log.info('Your features, specs, context files, principles and buildline.json are kept. Delete .buildline/ yourself if you want them gone.');
   if (opts.dryRun) return p.outro('Dry run: nothing was removed.');
   if (!opts.yes) {
     const ok = bail(await p.confirm({ message: 'Remove the factory from this project?', initialValue: false }));
     if (!ok) return p.outro('Nothing removed.');
   }
   applyRemove(root, result);
-  p.outro('Factory removed.');
+  p.outro('Buildline removed.');
 }
 
 // ---- status ------------------------------------------------------------------
@@ -240,7 +251,7 @@ export function status(root, opts = {}) {
   const done = features.length - active.length;
   console.log(`\n${pc.bold(config.project)} ${pc.dim('·')} ${AUTONOMY[config.autonomy]?.label || 'L' + config.autonomy} ${pc.dim('·')} ${active.length} active, ${done} shipped\n`);
   if (!active.length) {
-    console.log(pc.dim('  No active features. Start one with ') + pc.cyan('npx factory-cli new "<title>"') + pc.dim(' or /factory-new in Claude Code.\n'));
+    console.log(pc.dim('  No active features. Start one with ') + pc.cyan('npx buildline new "<title>"') + pc.dim(' or /buildline-new in Claude Code.\n'));
     return;
   }
   const who = { pm: pc.magenta('PM    '), designer: pc.blue('design'), eng: pc.cyan('eng   '), agent: pc.green('agent '), human: pc.red('human ') };
@@ -279,9 +290,9 @@ export async function newFeature(root, title, opts) {
     );
   }
   const f = createFeature(root, { title, type: type || 'feature', owner: opts.owner || null, parent: opts.parent || null });
-  const next = f.type === 'fix' ? `/factory-build ${f.id}` : `/factory-spec ${f.id}`;
-  console.log(`${pc.green('✔')} Created ${pc.bold(f.id)} ${f.title} ${pc.dim(`(${f.type}) → .factory/features/${f.dir}/`)}`);
-  console.log(`  Next: ${pc.cyan(next)} in Claude Code, or edit ${pc.dim(`.factory/features/${f.dir}/spec.md`)}`);
+  const next = f.type === 'fix' ? `/buildline-build ${f.id}` : `/buildline-spec ${f.id}`;
+  console.log(`${pc.green('✔')} Created ${pc.bold(f.id)} ${f.title} ${pc.dim(`(${f.type}) → .buildline/features/${f.dir}/`)}`);
+  console.log(`  Next: ${pc.cyan(next)} in Claude Code, or edit ${pc.dim(`.buildline/features/${f.dir}/spec.md`)}`);
   return f;
 }
 
@@ -304,38 +315,88 @@ export function moveFeature(root, ref, station, opts) {
 // ---- gates / run / doctor ------------------------------------------------------
 
 export function gates(root, names) {
-  const script = path.join(root, '.factory', 'bin', 'gates.mjs');
-  if (!fs.existsSync(script)) throw new Error('Gates script missing. Run npx factory-cli update.');
+  const script = path.join(root, '.buildline', 'bin', 'gates.mjs');
+  if (!fs.existsSync(script)) throw new Error('Gates script missing. Run npx buildline update.');
   const res = spawnSync(process.execPath, [script, ...names], { cwd: root, stdio: 'inherit' });
   process.exitCode = res.status ?? 1;
 }
 
 export function goalFor(f) {
   return (
-    `/goal Feature ${f.id} (${f.title}) reaches status "ship": following .factory/stations/autopilot.md, ` +
-    `every task in .factory/features/${f.dir}/feature.json has "passes": true, the last \`node .factory/bin/gates.mjs\` run printed "ALL GATES PASSED", ` +
-    `and the factory-verifier subagent reported every acceptance scenario as PASS. Stop early if blocked as defined in the playbook, or after 60 turns.`
+    `/goal Feature ${f.id} (${f.title}) reaches status "ship": following .buildline/stations/autopilot.md, ` +
+    `every task in .buildline/features/${f.dir}/feature.json has "passes": true, the last \`node .buildline/bin/gates.mjs\` run printed "ALL GATES PASSED", ` +
+    `and the buildline-verifier subagent reported every acceptance scenario as PASS. Stop early if blocked as defined in the playbook, or after 60 turns.`
   );
 }
 
-function launchClaude(root, args) {
-  if (!hasCommand('claude')) {
-    throw new Error('Claude Code is not installed. Install it from https://code.claude.com, then run this again.');
+function launch(root, cmd, args) {
+  if (!hasCommand(cmd)) {
+    const cli = CLIS[cmd] || { label: cmd, install: '' };
+    throw new Error(`${cli.label} is not installed${cli.install ? ` (${cli.install})` : ''}. Install it, then run this again.`);
   }
-  const child = spawn('claude', args, { cwd: root, stdio: 'inherit' });
+  // npm installs CLIs as .cmd shims on Windows, which need a shell (and quoted args).
+  const win = process.platform === 'win32';
+  const child = spawn(cmd, win ? args.map((x) => `"${x.replace(/"/g, '\\"')}"`) : args, { cwd: root, stdio: 'inherit', shell: win });
   return new Promise((resolve) => child.on('exit', (code) => resolve((process.exitCode = code ?? 0))));
+}
+const launchClaude = (root, args) => launch(root, 'claude', args);
+
+/** Open a station for a feature in whichever CLI and model buildline.json routes it to. */
+export async function step(root, station, ref, opts = {}) {
+  const config = loadConfig(root);
+  if (station !== 'buildline' && !MODEL_STATIONS.includes(station) && station !== 'autopilot') throw new Error(`Unknown station "${station}". Use one of: ${MODEL_STATIONS.join(', ')}.`);
+  const f = ref ? findFeature(root, ref) : null;
+  if (ref && !f) throw new Error(`No feature matching "${ref}".`);
+  const m = opts.model ? parseModel(opts.model) : modelFor(config, station);
+  const [cmd, args] = launchArgs(m, stationPrompt(m.cli, station, f?.id || ''), { headless: opts.headless });
+  if (opts.print) return console.log([cmd, ...args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a))].join(' '));
+  console.log(`${pc.yellow('▶')} ${station}${f ? ` ${pc.bold(f.id)} ${f.title}` : ''} ${pc.dim('on ' + describeModel(m))}`);
+  return launch(root, cmd, args);
+}
+
+/** Show or change per-station models. */
+export async function models(root, args, opts) {
+  const config = loadConfig(root);
+  const [action, station, value] = args;
+  if (action === 'set' || action === 'preset') {
+    if (action === 'preset') {
+      if (!PRESETS[station]) throw new Error(`Unknown preset "${station}". Use one of: ${Object.keys(PRESETS).join(', ')}.`);
+      config.models = { ...PRESETS[station].models };
+    } else {
+      if (!station || !['default', ...MODEL_STATIONS].includes(station)) throw new Error(`Usage: buildline models set <default|${MODEL_STATIONS.join('|')}> <model|inherit>`);
+      if (!value) throw new Error('Give a model: opus, sonnet, haiku, a model id, codex[:model], gemini[:model], or inherit.');
+      config.models = { ...(config.models || {}) };
+      if (value === 'inherit') delete config.models[station];
+      else config.models[station] = value;
+    }
+    fs.writeFileSync(configPath(root), JSON.stringify(config, null, 2) + '\n');
+    apply(root, plan(root, config));
+    console.log(`${pc.green('✔')} models updated; skills and subagents refreshed.`);
+  } else if (action) {
+    throw new Error('Usage: buildline models [set <station> <model> | preset <name>]');
+  }
+  if (opts.json) return console.log(JSON.stringify(Object.fromEntries(MODEL_STATIONS.map((s) => [s, modelFor(config, s)])), null, 2));
+  console.log(`\n${pc.bold('Models per station')} ${pc.dim('(.buildline/buildline.json › models)')}\n`);
+  for (const s of MODEL_STATIONS) {
+    const m = modelFor(config, s);
+    const missing = m.cli !== 'claude' && !hasCommand(m.cli) ? pc.red(` ${m.cli} not installed`) : '';
+    console.log(`  ${s.padEnd(9)} ${m.model || m.cli !== 'claude' ? pc.cyan(describeModel(m)) : pc.dim(describeModel(m))}${missing}`);
+  }
+  console.log(`\n  ${pc.dim('Change one:')} buildline models set review codex   ${pc.dim('Presets:')} ${Object.keys(PRESETS).join(', ')}\n`);
 }
 
 export async function run(root, ref, opts) {
   const config = loadConfig(root);
   const f = ref ? findFeature(root, ref) : listFeatures(root).find((x) => ['plan', 'build', 'verify', 'review'].includes(x.status));
-  if (!f) throw new Error(ref ? `No feature matching "${ref}".` : 'No feature ready to run. Pass an id: factory run 004');
+  if (!f) throw new Error(ref ? `No feature matching "${ref}".` : 'No feature ready to run. Pass an id: buildline run 004');
   if (config.autonomy < 3 && !opts.force) {
-    throw new Error(`Autopilot needs autonomy L3+ (this project is L${config.autonomy}). Use /factory-build ${f.id}, raise "autonomy" in .factory/factory.json, or pass --force.`);
+    throw new Error(`Autopilot needs autonomy L3+ (this project is L${config.autonomy}). Use /buildline-build ${f.id}, raise "autonomy" in .buildline/buildline.json, or pass --force.`);
   }
   const goal = goalFor(f);
   if (opts.print) return console.log(goal);
-  const args = opts.headless ? ['-p', goal, '--permission-mode', 'acceptEdits'] : [goal];
+  const build = modelFor(config, 'build');
+  if (build.cli !== 'claude') console.log(pc.yellow(`! Autopilot runs in Claude Code (/goal); build is set to ${build.cli}, so the session model is used for building.`));
+  const [, args] = launchArgs(build.cli === 'claude' ? build : { cli: 'claude', model: null }, goal, { headless: opts.headless });
   console.log(`${pc.yellow('▶')} Autopilot for ${pc.bold(f.id)} ${f.title}${opts.headless ? pc.dim(' (headless)') : ''}`);
   return launchClaude(root, args);
 }
@@ -355,28 +416,31 @@ export function doctor(root) {
   } else warn('Claude Code', 'not found: install from https://code.claude.com (other agents still work via AGENTS.md)');
 
   if (!isInstalled(root)) {
-    fail('Factory', 'not installed here: run npx factory-cli init');
+    fail('Buildline', 'not installed here: run npx buildline init');
   } else {
     let config;
     try {
       config = loadConfig(root);
-      ok('factory.json', `autonomy L${config.autonomy}, agents: ${config.agents.join(', ')}`);
+      ok('buildline.json', `autonomy L${config.autonomy}, agents: ${config.agents.join(', ')}`);
     } catch (err) {
-      fail('factory.json', err.message);
+      fail('buildline.json', err.message);
     }
     const manifest = loadManifest(root);
-    manifest.version === VERSION ? ok('Version', VERSION) : warn('Version', `installed ${manifest.version || '?'}, CLI is ${VERSION}: run npx factory-cli update`);
+    manifest.version === VERSION ? ok('Version', VERSION) : warn('Version', `installed ${manifest.version || '?'}, CLI is ${VERSION}: run npx buildline update`);
     if (config) {
-      config.gates?.length ? ok('Gates', config.gates.map((g) => g.name).join(', ')) : warn('Gates', 'none configured: agents cannot verify their work. Run /factory-onboard or edit factory.json');
+      const routed = MODEL_STATIONS.map((s) => [s, modelFor(config, s)]).filter(([, m]) => m.model || m.cli !== 'claude');
+      ok('Models', routed.length ? routed.map(([s, m]) => `${s}: ${describeModel(m)}`).join(', ') : 'session model everywhere');
+      for (const cli of externalClis(config)) hasCommand(cli) ? ok(CLIS[cli].label, 'installed') : fail(CLIS[cli].label, `routed to in models but not installed: ${CLIS[cli].install}`);
+      config.gates?.length ? ok('Gates', config.gates.map((g) => g.name).join(', ')) : warn('Gates', 'none configured: agents cannot verify their work. Run /buildline-onboard or edit buildline.json');
       const r = plan(root, config);
       const modified = r.plans.filter((x) => x.action === 'skip-modified').map((x) => x.rel);
       const missing = r.plans.filter((x) => x.action === 'create').map((x) => x.rel);
-      missing.length ? warn('Managed files', `${missing.length} missing: run npx factory-cli update`) : ok('Managed files', 'present');
+      missing.length ? warn('Managed files', `${missing.length} missing: run npx buildline update`) : ok('Managed files', 'present');
       if (modified.length) warn('Customised', modified.join(', '));
       if (config.agents.includes('claude')) {
         try {
           const s = JSON.parse(fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'));
-          JSON.stringify(s.hooks || {}).includes('.factory/bin/hook.mjs') ? ok('Claude hooks', 'session briefing + acceptance guard') : warn('Claude hooks', 'missing: run npx factory-cli update');
+          JSON.stringify(s.hooks || {}).includes('.buildline/bin/hook.mjs') ? ok('Claude hooks', 'session briefing + acceptance guard') : warn('Claude hooks', 'missing: run npx buildline update');
         } catch {
           warn('Claude hooks', '.claude/settings.json missing or invalid');
         }
@@ -384,12 +448,12 @@ export function doctor(root) {
     }
     const todo = ['product.md', 'architecture.md', 'design.md'].filter((f) => {
       try {
-        return fs.readFileSync(path.join(root, '.factory', 'context', f), 'utf8').includes('TODO');
+        return fs.readFileSync(path.join(root, '.buildline', 'context', f), 'utf8').includes('TODO');
       } catch {
         return true;
       }
     });
-    todo.length ? warn('Context', `${todo.join(', ')} still have TODOs: run /factory-onboard`) : ok('Context', 'filled in');
+    todo.length ? warn('Context', `${todo.join(', ')} still have TODOs: run /buildline-onboard`) : ok('Context', 'filled in');
     const bad = listFeatures(root).filter((f) => f.error);
     bad.length ? fail('Features', `invalid feature.json in ${bad.map((f) => f.dir).join(', ')}`) : ok('Features', `${listFeatures(root).length} found`);
   }
@@ -404,7 +468,7 @@ export function doctor(root) {
 export async function home(root) {
   console.log('\n' + LOGO + '\n');
   if (!isInstalled(root)) {
-    p.intro(pc.bgYellow(pc.black(' factory ')));
+    p.intro(pc.bgYellow(pc.black(' buildline ')));
     const go = bail(await p.confirm({ message: `No factory in ${pc.cyan(path.basename(root))} yet. Set one up?`, initialValue: true }));
     if (!go) return p.outro('See you later.');
     return init(root, {});
@@ -420,10 +484,10 @@ export async function home(root) {
           { value: 'new', label: 'Start a new feature or fix' },
           features.length && { value: 'open', label: 'Work on a feature', hint: 'approve, move, autopilot, open in Claude' },
           { value: 'ui', label: 'Open the dashboard', hint: 'browser UI for PMs and designers' },
-          hasCommand('claude') && { value: 'claude', label: 'Open Claude Code at the front door', hint: '/factory' },
+          hasCommand('claude') && { value: 'claude', label: 'Open Claude Code at the front door', hint: '/buildline' },
           { value: 'gates', label: 'Run quality gates' },
           { value: 'doctor', label: 'Check setup (doctor)' },
-          { value: 'update', label: 'Update factory files' },
+          { value: 'update', label: 'Update Buildline files' },
           { value: 'exit', label: 'Exit' },
         ].filter(Boolean),
       }),
@@ -431,7 +495,7 @@ export async function home(root) {
     if (action === 'exit') return p.outro('Happy building.');
     if (action === 'new') await newFeature(root, null, {});
     if (action === 'ui') return (await import('./server.js')).serve(root, {});
-    if (action === 'claude') return launchClaude(root, ['/factory']);
+    if (action === 'claude') return launchClaude(root, ['/buildline']);
     if (action === 'gates') gates(root, []);
     if (action === 'doctor') doctor(root);
     if (action === 'update') await update(root, {});
@@ -448,7 +512,7 @@ export async function home(root) {
         await p.select({
           message: `${f.id} ${f.title}`,
           options: [
-            hasCommand('claude') && { value: 'station', label: `Continue in Claude Code`, hint: `/factory-${f.status} ${f.id}` },
+            { value: 'station', label: 'Continue at this station', hint: `${f.status} · ${describeModel(modelFor(config, f.status))}` },
             config.autonomy >= 3 && ['plan', 'build', 'verify', 'review'].includes(f.status) && { value: 'run', label: 'Run autopilot (/goal)' },
             { value: 'approve', label: 'Record an approval' },
             { value: 'move', label: 'Move to another station' },
@@ -456,7 +520,7 @@ export async function home(root) {
           ].filter(Boolean),
         }),
       );
-      if (what === 'station') return launchClaude(root, [STATIONS.includes(f.status) && !['new', 'done'].includes(f.status) ? `/factory-${f.status} ${f.id}` : `/factory ${f.id}`]);
+      if (what === 'station') return step(root, MODEL_STATIONS.includes(f.status) && f.status !== 'new' ? f.status : 'buildline', f.id);
       if (what === 'run') return run(root, f.id, {});
       if (what === 'approve') {
         const stage = bail(await p.select({ message: 'Approve which stage?', options: ['spec', 'design', 'plan'].map((s) => ({ value: s, label: s, hint: f.approvals?.[s] ? `already approved by ${f.approvals[s].by}` : '' })) }));

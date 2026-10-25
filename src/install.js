@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { render, templatesDir } from './render.js';
 import { loadManifest, saveManifest, planWrite, applyPlan, planRemove, hash } from './files.js';
+import { modelFor, STATION_SUBAGENTS, CLIS } from './models.js';
 
 export const VERSION = JSON.parse(fs.readFileSync(path.join(templatesDir, '..', 'package.json'), 'utf8')).version;
 
@@ -23,17 +24,17 @@ export const AUTONOMY = {
 };
 
 const STATION_SKILLS = [
-  ['factory', 'factory', 'Software factory front door: shows feature status, what is next, and routes to the right station (onboard, new, spec, design, plan, build, verify, review, ship). Use when the user says "factory", asks what to do next, or wants to start any piece of work.', '[what you want to do]'],
-  ['factory-onboard', 'onboard', 'Onboard the software factory: interview for a new project and scaffold it, or map an existing codebase into .factory/context files and real quality gates. Use when setting up the factory or when context files are stale.', ''],
-  ['factory-new', 'new', 'Factory intake: turn an idea, request or bug report into a sized feature (fix / feature / epic) with a brief. Use when someone proposes a feature, reports a bug, or says "new feature".', '<idea or bug description>'],
-  ['factory-spec', 'spec', 'Factory spec station: interview the PM and write testable requirements and Given/When/Then acceptance scenarios for a feature. Use when writing or refining a feature spec.', '<feature id>'],
-  ['factory-design', 'design', 'Factory design station: UX flows, screen states, components, copy and accessibility, plus technical design, for a feature. Use for design or technical approach work on a factory feature.', '<feature id>'],
-  ['factory-plan', 'plan', 'Factory plan station: break a feature spec into small, verifiable, ordered tasks in feature.json. Use when a spec is ready for planning.', '<feature id>'],
-  ['factory-build', 'build', 'Factory build station: implement a feature task by task behind the quality gates, test-first, with evidence and a commit per task. Use to implement or continue implementing a factory feature.', '<feature id>'],
-  ['factory-verify', 'verify', 'Factory verify station: independently check a feature against its acceptance scenarios with gates, the running app and browser checks. Use when all build tasks pass.', '<feature id>'],
-  ['factory-review', 'review', 'Factory review station: review a feature diff against its spec and principles, then prepare the PR description. Use when verification passes.', '<feature id>'],
-  ['factory-ship', 'ship', 'Factory ship station: open the PR, update the changelog and fold learnings back into the context files.', '<feature id>', true],
-  ['factory-autopilot', 'autopilot', 'Factory autopilot: run build, verify and review in a loop until the feature is ready to ship or blocked. Pairs with /goal for unattended runs.', '<feature id>', true],
+  ['buildline', 'buildline', 'Software factory front door: shows feature status, what is next, and routes to the right station (onboard, new, spec, design, plan, build, verify, review, ship). Use when the user says "buildline" or "factory", asks what to do next, or wants to start any piece of work.', '[what you want to do]'],
+  ['buildline-onboard', 'onboard', 'Onboard the software factory: interview for a new project and scaffold it, or map an existing codebase into .buildline/context files and real quality gates. Use when setting up the factory or when context files are stale.', ''],
+  ['buildline-new', 'new', 'Buildline intake: turn an idea, request or bug report into a sized feature (fix / feature / epic) with a brief. Use when someone proposes a feature, reports a bug, or says "new feature".', '<idea or bug description>'],
+  ['buildline-spec', 'spec', 'Buildline spec station: interview the PM and write testable requirements and Given/When/Then acceptance scenarios for a feature. Use when writing or refining a feature spec.', '<feature id>'],
+  ['buildline-design', 'design', 'Buildline design station: UX flows, screen states, components, copy and accessibility, plus technical design, for a feature. Use for design or technical approach work on a factory feature.', '<feature id>'],
+  ['buildline-plan', 'plan', 'Buildline plan station: break a feature spec into small, verifiable, ordered tasks in feature.json. Use when a spec is ready for planning.', '<feature id>'],
+  ['buildline-build', 'build', 'Buildline build station: implement a feature task by task behind the quality gates, test-first, with evidence and a commit per task. Use to implement or continue implementing a factory feature.', '<feature id>'],
+  ['buildline-verify', 'verify', 'Buildline verify station: independently check a feature against its acceptance scenarios with gates, the running app and browser checks. Use when all build tasks pass.', '<feature id>'],
+  ['buildline-review', 'review', 'Buildline review station: review a feature diff against its spec and principles, then prepare the PR description. Use when verification passes.', '<feature id>'],
+  ['buildline-ship', 'ship', 'Buildline ship station: open the PR, update the changelog and fold learnings back into the context files.', '<feature id>', true],
+  ['buildline-autopilot', 'autopilot', 'Buildline autopilot: run build, verify and review in a loop until the feature is ready to ship or blocked. Pairs with /goal for unattended runs.', '<feature id>', true],
 ];
 
 const read = (rel) => fs.readFileSync(path.join(templatesDir, rel), 'utf8');
@@ -63,6 +64,7 @@ export function makeConfig(stack, answers) {
     },
     commands: { dev: stack.commands?.dev || null },
     gates: answers.gates || defaultGates(stack),
+    models: answers.models || {},
   };
 }
 
@@ -83,7 +85,7 @@ export function buildEntries(root, config) {
   const has = (a) => config.agents.includes(a);
   const gatesList = config.gates.length
     ? config.gates.map((g) => `- **${g.name}**: \`${g.command}\`${g.required === false ? ' (optional)' : ''}`).join('\n')
-    : '- _None configured yet. Run `/factory-onboard` or add commands to `gates` in `.factory/factory.json`._';
+    : '- _None configured yet. Run `/buildline-onboard` or add commands to `gates` in `.buildline/buildline.json`._';
   const vars = {
     gatesList,
     stackBullets: bullets([...config.stack.frameworks, ...config.stack.languages, config.stack.packageManager && `Package manager: ${config.stack.packageManager}`].filter(Boolean)),
@@ -98,47 +100,58 @@ export function buildEntries(root, config) {
 
   if (has('claude')) {
     const claudePath = path.join(root, 'CLAUDE.md');
-    const existing = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, 'utf8').replace(/<!-- factory:start[\s\S]*?factory:end -->/, '') : '';
+    const existing = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, 'utf8').replace(/<!-- buildline:start[\s\S]*?buildline:end -->/, '') : '';
     const agentsImport = /@\.?\/?AGENTS\.md/.test(existing) ? '' : '@AGENTS.md\n';
     entries.push({ path: 'CLAUDE.md', mode: 'block', header: '# CLAUDE.md', position: 'top', content: render(read('CLAUDE.block.md'), { agentsImport }) });
 
     for (const [name, station, description, hint, manualOnly] of STATION_SKILLS) {
+      const m = modelFor(config, station);
       const front = [
         '---',
         `name: ${name}`,
         `description: ${JSON.stringify(description)}`,
         hint ? `argument-hint: ${JSON.stringify(hint)}` : null,
         manualOnly ? 'disable-model-invocation: true' : null,
+        m.cli === 'claude' && m.model ? `model: ${m.model}` : null,
         '---',
       ].filter(Boolean);
-      const body = `\nRead \`.factory/stations/${station}.md\` now and follow it step by step. It is the single source of truth for this station, shared with every other agent in the project.\n\nArguments: $ARGUMENTS\n`;
+      const handoff =
+        m.cli === 'claude'
+          ? ''
+          : `\nThis project runs the ${station} station on ${CLIS[m.cli].label} (\`models.${station}\` in \`.buildline/buildline.json\`). Hand it off: run \`npx buildline step ${station} $ARGUMENTS --headless\` with Bash, wait for it to finish, then summarise what it did and what is next. If the command fails because ${m.cli} isn't installed, say so and carry on with the playbook below yourself.\n`;
+      const body = `${handoff}\nRead \`.buildline/stations/${station}.md\` now and follow it step by step. It is the single source of truth for this station, shared with every other agent in the project.\n\nArguments: $ARGUMENTS\n`;
       add(`.claude/skills/${name}/SKILL.md`, front.join('\n') + '\n' + body);
     }
-    for (const f of fs.readdirSync(path.join(templatesDir, 'agents'))) add(`.claude/agents/${f}`, read(`agents/${f}`));
+    const subagentStation = Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st]));
+    for (const f of fs.readdirSync(path.join(templatesDir, 'agents'))) {
+      const m = subagentStation[f] ? modelFor(config, subagentStation[f]) : null;
+      const content = read(`agents/${f}`);
+      add(`.claude/agents/${f}`, m?.cli === 'claude' && m.model ? content.replace(/^model: .*$/m, `model: ${m.model}`) : content);
+    }
   }
-  if (has('cursor')) add('.cursor/rules/factory.mdc', read('cursor.mdc'));
+  if (has('cursor')) add('.cursor/rules/buildline.mdc', read('cursor.mdc'));
   if (has('gemini')) entries.push({ path: 'GEMINI.md', mode: 'block', header: '# GEMINI.md', position: 'top', content: read('GEMINI.block.md') });
 
-  add('.factory/factory.json', JSON.stringify(config, null, 2) + '\n', { userOwned: true });
-  add('.factory/README.md', render(read('factory-readme.md'), { project: config.project }));
-  add('.factory/principles.md', read('principles.md'), { userOwned: true });
-  for (const f of ['product.md', 'architecture.md', 'design.md']) add(`.factory/context/${f}`, render(read(`context/${f}`), vars), { userOwned: true });
-  for (const f of fs.readdirSync(path.join(templatesDir, 'stations'))) add(`.factory/stations/${f}`, read(`stations/${f}`));
-  for (const f of ['spec.md', 'progress.md']) add(`.factory/templates/${f}`, read(`feature/${f}`));
-  add('.factory/bin/gates.mjs', read('bin/gates.mjs'), { executable: true });
-  add('.factory/bin/hook.mjs', read('bin/hook.mjs'), { executable: true });
-  add('.factory/features/.gitkeep', '');
-  if (config.ci) add('.github/workflows/factory.yml', render(read('ci/factory.yml'), vars));
+  add('.buildline/buildline.json', JSON.stringify(config, null, 2) + '\n', { userOwned: true });
+  add('.buildline/README.md', render(read('buildline-readme.md'), { project: config.project }));
+  add('.buildline/principles.md', read('principles.md'), { userOwned: true });
+  for (const f of ['product.md', 'architecture.md', 'design.md']) add(`.buildline/context/${f}`, render(read(`context/${f}`), vars), { userOwned: true });
+  for (const f of fs.readdirSync(path.join(templatesDir, 'stations'))) add(`.buildline/stations/${f}`, read(`stations/${f}`));
+  for (const f of ['spec.md', 'progress.md']) add(`.buildline/templates/${f}`, read(`feature/${f}`));
+  add('.buildline/bin/gates.mjs', read('bin/gates.mjs'), { executable: true });
+  add('.buildline/bin/hook.mjs', read('bin/hook.mjs'), { executable: true });
+  add('.buildline/features/.gitkeep', '');
+  if (config.ci) add('.github/workflows/buildline.yml', render(read('ci/buildline.yml'), vars));
   return entries;
 }
 
 // ---- .claude/settings.json ---------------------------------------------------
 
-const HOOK_MARK = '.factory/bin/hook.mjs';
-const hookCmd = (mode) => `node "$CLAUDE_PROJECT_DIR/.factory/bin/hook.mjs" ${mode}`;
+const HOOK_MARK = '.buildline/bin/hook.mjs';
+const hookCmd = (mode) => `node "$CLAUDE_PROJECT_DIR/.buildline/bin/hook.mjs" ${mode}`;
 
 export function settingsAllow(config) {
-  const allow = ['Bash(node .factory/bin/gates.mjs)', 'Bash(node .factory/bin/gates.mjs *)', 'Bash(npx factory-cli *)'];
+  const allow = ['Bash(node .buildline/bin/gates.mjs)', 'Bash(node .buildline/bin/gates.mjs *)', 'Bash(npx buildline *)'];
   for (const g of config.gates) allow.push(`Bash(${g.command})`, `Bash(${g.command} *)`);
   return [...new Set(allow)];
 }
@@ -248,9 +261,9 @@ export function applyRemove(root, { plans, settings }) {
     if (settings === '') fs.rmSync(file, { force: true });
     else fs.writeFileSync(file, settings);
   }
-  fs.rmSync(path.join(root, '.factory', 'manifest.json'), { force: true });
+  fs.rmSync(path.join(root, '.buildline', 'manifest.json'), { force: true });
   // Remove now-empty directories we created, deepest first. Feature data is never deleted.
-  for (const d of ['.factory/bin', '.factory/stations', '.factory/templates', '.cursor/rules', '.cursor', '.claude/agents', '.claude/skills', '.claude', '.github/workflows', '.github']) {
+  for (const d of ['.buildline/bin', '.buildline/stations', '.buildline/templates', '.cursor/rules', '.cursor', '.claude/agents', '.claude/skills', '.claude', '.github/workflows', '.github']) {
     const abs = path.join(root, d);
     try {
       if (fs.existsSync(abs) && fs.statSync(abs).isDirectory()) {

@@ -1,6 +1,6 @@
 # Product
 
-> TODO: Run `/factory-onboard` (or fill this in by hand). Keep it under ~120 lines.
+> TODO: Run `/buildline-onboard` (or fill this in by hand). Keep it under ~120 lines.
 
 ## Vision
 TODO: one or two sentences: what this is and why it exists.

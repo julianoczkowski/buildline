@@ -2,7 +2,7 @@
 
 This project runs a **software factory**: every change moves through a short, spec-driven pipeline with real quality gates. Humans own the *what* and the *why*; agents do most of the *how*, and nothing is called done without evidence.
 
-**Start here:** read `.factory/factory.json` (config), `.factory/principles.md` (non-negotiables) and the `.factory/context/` files before planning any change.
+**Start here:** read `.buildline/buildline.json` (config), `.buildline/principles.md` (non-negotiables) and the `.buildline/context/` files before planning any change.
 
 ### Pipeline
 
@@ -19,18 +19,18 @@ Route by size, never by habit:
 | `feature` | New behaviour, new UI, or touches several modules | all stations |
 | `epic` | Too big for one PR | intake → spec → split into features |
 
-Each station has a playbook in `.factory/stations/<station>.md`. Read the playbook before doing that station's work.
+Each station has a playbook in `.buildline/stations/<station>.md`. Read the playbook before doing that station's work.
 
 ### Where things live
 
-- `.factory/features/<id>-<slug>/feature.json` — state: status, approvals, tasks (each with `passes`), history
-- `.factory/features/<id>-<slug>/spec.md` — the single source of truth for that change
-- `.factory/features/<id>-<slug>/progress.md` — append-only work log so any session can resume
-- `.factory/context/` — living product, architecture and design knowledge (update it when you ship)
+- `.buildline/features/<id>-<slug>/feature.json` — state: status, approvals, tasks (each with `passes`), history
+- `.buildline/features/<id>-<slug>/spec.md` — the single source of truth for that change
+- `.buildline/features/<id>-<slug>/progress.md` — append-only work log so any session can resume
+- `.buildline/context/` — living product, architecture and design knowledge (update it when you ship)
 
 ### Quality gates
 
-Run `node .factory/bin/gates.mjs` (or `npx factory-cli gates`). Configured gates:
+Run `node .buildline/bin/gates.mjs` (or `npx buildline gates`). Configured gates:
 
 {{gatesList}}
 
@@ -42,6 +42,7 @@ A task only gets `"passes": true` after the gates pass **and** its own verificat
 2. **Never weaken the checks.** Do not delete, skip, or loosen tests, acceptance scenarios or gates to make them pass. If a check is wrong, stop and say so.
 3. **Never edit the `acceptance` section of a spec during build.** It belongs to the spec owner.
 4. **Leave a trail.** Append to `progress.md` at the end of every work session: what changed, what was verified, what is next.
-5. **Respect the autonomy level** (`autonomy` in `factory.json`): pause for human approval where the station playbook says to.
+5. **Respect the autonomy level** (`autonomy` in `buildline.json`): pause for human approval where the station playbook says to.
 6. **Small, reversible steps.** Prefer many small commits over one large one. Match the existing code style.
 7. **Ask, don't guess,** when the spec is ambiguous about user-facing behaviour.
+8. **Respect model routing.** `models` in `buildline.json` can send a station to another tool (e.g. `"review": "codex"`). If a station is routed to a different CLI than the one you are, hand it off with `npx buildline step <station> <id> --headless` and summarise the result instead of doing it yourself.

@@ -1,10 +1,10 @@
-# Factory for designers
+# Buildline for designers
 
 You own **how it looks and behaves**, and the design system that keeps it consistent.
 
 ## Once per project: `context/design.md`
 
-This is how agents learn your system. Fill it in (or let `/factory-onboard` draft it from the code, then correct it):
+This is how agents learn your system. Fill it in (or let `/buildline-onboard` draft it from the code, then correct it):
 
 - 3–5 **principles** that decide trade-offs ("clarity over density").
 - **Source of truth:** Figma file, Storybook URL, token files.
@@ -15,7 +15,7 @@ This is how agents learn your system. Fill it in (or let `/factory-onboard` draf
 
 The dashboard's **Context** tab lets you edit it in the browser.
 
-## Per feature: `/factory-design <id>`
+## Per feature: `/buildline-design <id>`
 
 Bring what you have: a Figma link, screenshots, a sketch, a competitor's screen. Claude describes what it sees, confirms its reading, then writes `## Design → ### Experience` in the spec:
 
@@ -27,7 +27,7 @@ Bring what you have: a Figma link, screenshots, a sketch, a competitor's screen.
 
 For visual work, ask for a **throwaway prototype** first: a single HTML page or a story, with screenshots, before anything goes into production code.
 
-The `factory-design-reviewer` subagent then checks the design against your system and the acceptance scenarios: states, tokens, hierarchy, contrast, keyboard path, touch targets.
+The `buildline-design-reviewer` subagent then checks the design against your system and the acceptance scenarios: states, tokens, hierarchy, contrast, keyboard path, touch targets.
 
 ## After build
 

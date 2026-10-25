@@ -1,6 +1,6 @@
 # Design system
 
-> TODO: Run `/factory-onboard` (or fill this in by hand). Designers own this file.
+> TODO: Run `/buildline-onboard` (or fill this in by hand). Designers own this file.
 
 ## Principles
 TODO: three to five principles that decide trade-offs (e.g. "clarity over density").

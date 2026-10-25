@@ -1,6 +1,6 @@
 # Station: onboard
 
-Goal: give every future agent session the context a new senior teammate would need on day one, in as few words as possible. Output lives in `.factory/context/` and `.factory/factory.json`.
+Goal: give every future agent session the context a new senior teammate would need on day one, in as few words as possible. Output lives in `.buildline/context/` and `.buildline/buildline.json`.
 
 First decide which path applies: if the repo has little or no source code it is **greenfield**; otherwise it is **brownfield**.
 
@@ -22,13 +22,13 @@ Then:
 - **Recommend a stack** that fits the answers. Give a one-line reason and one alternative. Prefer boring, well-documented choices that agents know well. Wait for confirmation (unless autonomy is L4).
 - **Scaffold** with the framework's official generator (e.g. `npm create vite@latest`, `npx create-next-app@latest`, `uv init`, `cargo new`). Don't hand-write what a generator produces.
 - Add a test runner and a linter if the generator didn't, plus one passing smoke test.
-- Fill in `factory.json → gates` with the real commands and run `node .factory/bin/gates.mjs` until it passes.
-- Write the context files (below) and commit: `chore: scaffold project and onboard factory`.
-- Suggest the first features as `/factory-new …` commands, ordered as a thin vertical slice first.
+- Fill in `buildline.json → gates` with the real commands and run `node .buildline/bin/gates.mjs` until it passes.
+- Write the context files (below) and commit: `chore: scaffold project and onboard buildline`.
+- Suggest the first features as `/buildline-new …` commands, ordered as a thin vertical slice first.
 
 ## Brownfield (existing code)
 
-Don't interview first; read first. Delegate the reading to the `factory-mapper` subagent if available (it keeps the main context clean), and ask it for a summary you can turn into the context files.
+Don't interview first; read first. Delegate the reading to the `buildline-mapper` subagent if available (it keeps the main context clean), and ask it for a summary you can turn into the context files.
 
 What to find out:
 
@@ -41,7 +41,7 @@ What to find out:
 
 Then ask the person only what code can't tell you: the product's goals, who the users are, what's planned next, and what "good" looks like to them.
 
-Update `factory.json → gates` with commands you have **seen pass** (or note the ones currently failing in `progress` so nobody is surprised).
+Update `buildline.json → gates` with commands you have **seen pass** (or note the ones currently failing in `progress` so nobody is surprised).
 
 ---
 
@@ -49,9 +49,9 @@ Update `factory.json → gates` with commands you have **seen pass** (or note th
 
 Keep each file under ~120 lines. Prefer bullet points and file paths over prose. Replace every `TODO`.
 
-- `.factory/context/product.md`: vision, users, problems, success metrics, scope, non-goals, glossary.
-- `.factory/context/architecture.md`: stack, module map, data flow, key decisions (with the reason), hazards.
-- `.factory/context/design.md`: design principles, tokens, components, patterns, accessibility baseline, where the source of truth lives (Figma link, Storybook, token files).
-- `.factory/principles.md`: review the defaults with the person and adjust. These are the rules every change is checked against.
+- `.buildline/context/product.md`: vision, users, problems, success metrics, scope, non-goals, glossary.
+- `.buildline/context/architecture.md`: stack, module map, data flow, key decisions (with the reason), hazards.
+- `.buildline/context/design.md`: design principles, tokens, components, patterns, accessibility baseline, where the source of truth lives (Figma link, Storybook, token files).
+- `.buildline/principles.md`: review the defaults with the person and adjust. These are the rules every change is checked against.
 
 Finish with a short summary of what you learned, what's still unknown, and the recommended next step.

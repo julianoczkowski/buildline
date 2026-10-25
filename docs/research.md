@@ -12,7 +12,7 @@ The reasoning behind Factory's design, from research done in October 2026. Sourc
 
   Willison questioned the no-review rule, and the credible examples are all tiny teams. [simonwillison.net](https://simonwillison.net/2026/feb/7/software-factory/) · [factory.strongdm.ai](https://factory.strongdm.ai)
 - **Spec-driven development** has three levels: spec-first, spec-anchored and spec-as-source. Most tools are spec-first in practice. [martinfowler.com](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)
-- **Factory.ai "Droids"** is the commercial, closed take: agents across CLI, desktop and web that plan, edit, test and open PRs. *(Naming note: Factory.ai is an established company; "factory-cli" is a working name.)*
+- **Factory.ai "Droids"** is the commercial, closed take: agents across CLI, desktop and web that plan, edit, test and open PRs. *(Naming: Factory.ai is an established company that also uses a `.factory/` project folder, which is why this project is called Buildline and installs into `.buildline/`.)*
 
 ## Existing tools we learned from
 
@@ -57,6 +57,7 @@ Shared standards: **AGENTS.md** (Linux Foundation's Agentic AI Foundation; read 
 | PMs and designers left out | Role-specific stations, a local dashboard to edit, approve and track, and design states and tokens treated as part of the spec. |
 | Hard installs and updates that clobber edits | `npx`, two small dependencies, hash-tracked managed files, marked blocks, and a clean `remove`. |
 | Context and token bloat | No MCP server; skills are 5-line pointers; playbooks load only when used. |
+| One model for every kind of work | Models per station: Opus plans, Sonnet builds, and Codex or Gemini can review as a second opinion. |
 | No path between autonomy levels | Autonomy dial L1–L4 with approvals recorded per feature; `/goal` autopilot from L3. |
 | No evidence of value | `metrics.reworks`, history and timestamps per feature as groundwork for cycle-time and rework reporting. |
 

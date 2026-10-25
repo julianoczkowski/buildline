@@ -10,7 +10,7 @@ Work out the base (usually the default branch) and collect the full diff for thi
 
 ## 2. Independent review
 
-Ask the `factory-reviewer` subagent to review the diff against `spec.md` and `.factory/principles.md`. In Claude Code you can also run `/code-review` for an extra correctness pass.
+Ask the `buildline-reviewer` subagent to review the diff against `spec.md` and `.buildline/principles.md`. In Claude Code you can also run `/code-review` for an extra correctness pass.
 
 The reviewer reports only findings that matter, each with file:line, severity (`blocker` / `should-fix` / `nit`) and a concrete fix:
 
@@ -19,7 +19,7 @@ The reviewer reports only findings that matter, each with file:line, severity (`
 - **Security:** injection, authz checks on every new endpoint, secrets, unsafe input handling, dependency risk.
 - **Maintainability:** follows existing conventions, no dead code or debug leftovers, names make sense.
 - **Tests:** the tests actually assert the behaviour (not just "doesn't crash"); no skipped or weakened tests.
-- **UX (UI changes):** matches `## Design`; use the `factory-design-reviewer` subagent with screenshots from `evidence/`.
+- **UX (UI changes):** matches `## Design`; use the `buildline-design-reviewer` subagent with screenshots from `evidence/`.
 
 Reviewers tend to over-report. Discard style opinions that the linter doesn't enforce, and anything speculative without a concrete failure scenario.
 
@@ -34,4 +34,4 @@ Write `## Review` in `spec.md`: a summary of what changed and why, risk areas to
 
 ## 5. Route
 
-When there are no open blockers or should-fix findings: status `ship`, history entry, next `/factory-ship <id>`. A human still approves the merge at every autonomy level.
+When there are no open blockers or should-fix findings: status `ship`, history entry, next `/buildline-ship <id>`. A human still approves the merge at every autonomy level.

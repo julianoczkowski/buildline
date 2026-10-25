@@ -20,7 +20,7 @@ const readText = (file) => {
   }
 };
 
-const IGNORED = new Set(['.git', 'node_modules', '.DS_Store', '.factory', '.claude', '.idea', '.vscode']);
+const IGNORED = new Set(['.git', 'node_modules', '.DS_Store', '.buildline', '.claude', '.idea', '.vscode']);
 
 export function isEmptyProject(dir) {
   if (!fs.existsSync(dir)) return true;

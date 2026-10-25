@@ -1,24 +1,24 @@
-# Factory for developers
+# Buildline for developers
 
 You own the technical design, the plan, the gates and the merge.
 
 ## Daily loop
 
 ```text
-/factory                       # what's in flight, what's next
-/factory-plan 012              # turn an approved spec into tasks
-/factory-build 012             # one task at a time: test first, gates, commit
-/factory-verify 012            # independent check in a clean context
-/factory-review 012            # findings + PR body
-/factory-ship 012              # PR, changelog, update context
+/buildline                       # what's in flight, what's next
+/buildline-plan 012              # turn an approved spec into tasks
+/buildline-build 012             # one task at a time: test first, gates, commit
+/buildline-verify 012            # independent check in a clean context
+/buildline-review 012            # findings + PR body
+/buildline-ship 012              # PR, changelog, update context
 ```
 
 Or unattended, at autonomy L3+:
 
 ```bash
-npx factory-cli run 012              # opens Claude Code with a /goal condition
-npx factory-cli run 012 --headless   # claude -p, for CI or a background terminal
-npx factory-cli run 012 --print      # just print the /goal line
+npx buildline run 012              # opens Claude Code with a /goal condition
+npx buildline run 012 --headless   # claude -p, for CI or a background terminal
+npx buildline run 012 --print      # just print the /goal line
 ```
 
 ## Gates are the contract
@@ -29,7 +29,7 @@ Agents believe whatever the gates say, so make them honest:
 - Make sure `test` actually fails when behaviour breaks.
 - Add an `e2e` gate (Playwright, Cypress) as soon as you have UI acceptance scenarios.
 
-`npx factory-cli doctor` warns when no gates are configured.
+`npx buildline doctor` warns when no gates are configured.
 
 ## How build sessions stay on track
 
@@ -43,7 +43,7 @@ Tasks marked `"parallel": true` can go to separate sessions. In Claude Code, use
 
 ## CI
 
-`--ci` adds `.github/workflows/factory.yml`:
+`--ci` adds `.github/workflows/buildline.yml`:
 
 - **gates** on every PR,
 - **review**: Claude reviews the PR against its factory spec (needs `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` secret; skipped otherwise),
@@ -51,4 +51,4 @@ Tasks marked `"parallel": true` can go to separate sessions. In Claude Code, use
 
 ## Other agents
 
-Codex and Copilot read `AGENTS.md`; Cursor gets `.cursor/rules/factory.mdc`; Gemini CLI gets a `GEMINI.md` import. They follow the same playbooks in `.factory/stations/`. Claude-only extras: skills, subagents, the acceptance-lock hook, `/goal`.
+Codex and Copilot read `AGENTS.md`; Cursor gets `.cursor/rules/buildline.mdc`; Gemini CLI gets a `GEMINI.md` import. They follow the same playbooks in `.buildline/stations/`. Claude-only extras: skills, subagents, the acceptance-lock hook, `/goal`.

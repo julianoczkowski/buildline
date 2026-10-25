@@ -1,9 +1,9 @@
-# Factory CI. Managed by factory-cli.
+# Buildline CI. Managed by buildline.
 #  - gates:  runs the factory quality gates on every pull request
 #  - review: Claude reviews the PR against its factory spec (needs ANTHROPIC_API_KEY
 #            or CLAUDE_CODE_OAUTH_TOKEN as a repository secret; skipped if neither is set)
 #  - @claude mentions in PR/issue comments run Claude interactively
-name: factory
+name: buildline
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: 22
 {{ciSetup}}
-      - run: node .factory/bin/gates.mjs
+      - run: node .buildline/bin/gates.mjs
 
   review:
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
@@ -47,8 +47,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
-            Find the factory feature it implements (branch name or commit tags like [004/T1] → .factory/features/004-*).
-            Follow .factory/stations/review.md using the factory-reviewer subagent against base origin/${{ github.base_ref }}.
+            Find the factory feature it implements (branch name or commit tags like [004/T1] → .buildline/features/004-*).
+            Follow .buildline/stations/review.md using the buildline-reviewer subagent against base origin/${{ github.base_ref }}.
             Post one concise PR comment with the findings and verdict. Do not push commits.
           claude_args: "--max-turns 30"
 

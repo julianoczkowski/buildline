@@ -6,7 +6,7 @@ Resolve the feature from `$ARGUMENTS` (id like `004` or a slug). If none is give
 
 ## 1. Load context
 
-Read `spec.md → ## Brief`, `.factory/context/product.md`, and `.factory/principles.md`. Skim the code areas involved so the requirements fit what already exists.
+Read `spec.md → ## Brief`, `.buildline/context/product.md`, and `.buildline/principles.md`. Skim the code areas involved so the requirements fit what already exists.
 
 ## 2. Grill, briefly
 
@@ -33,14 +33,14 @@ Aim for one screen of text. If it's getting longer than two, the feature is prob
 
 ## 4. Critique
 
-Ask the `factory-spec-critic` subagent to review `spec.md` (it checks for untestable requirements, missing unhappy paths, contradictions and hidden scope). Fix what's valid; mention anything you chose to leave and why.
+Ask the `buildline-spec-critic` subagent to review `spec.md` (it checks for untestable requirements, missing unhappy paths, contradictions and hidden scope). Fix what's valid; mention anything you chose to leave and why.
 
 ## 5. Epics: split
 
-If `type` is `epic`, end by proposing 2–6 child features, each a thin, shippable vertical slice. With the person's agreement, create them (`npx factory-cli new "<title>" --type feature --parent <epic-id>`) and copy the relevant requirements and acceptance into each child. The epic stays at `spec` as an index.
+If `type` is `epic`, end by proposing 2–6 child features, each a thin, shippable vertical slice. With the person's agreement, create them (`npx buildline new "<title>" --type feature --parent <epic-id>`) and copy the relevant requirements and acceptance into each child. The epic stays at `spec` as an index.
 
 ## 6. Approval and handoff
 
 - Set status to `design` (or `plan` if the change has no UX or architecture decisions; say why).
-- **Approval:** the spec needs human approval when autonomy ≤ 3. Ask: "Approve this spec?" Only when the person explicitly approves, record `approvals.spec = { "by": "<name or role>", "at": "<ISO date>" }`. Never record an approval on someone's behalf. They can also approve from `npx factory-cli ui` or with `npx factory-cli approve <id> spec`.
+- **Approval:** the spec needs human approval when autonomy ≤ 3. Ask: "Approve this spec?" Only when the person explicitly approves, record `approvals.spec = { "by": "<name or role>", "at": "<ISO date>" }`. Never record an approval on someone's behalf. They can also approve from `npx buildline ui` or with `npx buildline approve <id> spec`.
 - Append a `history` entry and suggest the next command.

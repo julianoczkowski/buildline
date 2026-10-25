@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Factory quality gates. Runs every gate in .factory/factory.json in order and
+// Buildline quality gates. Runs every gate in .buildline/buildline.json in order and
 // prints a summary. Exit code 0 only if all required gates pass.
 //
-//   node .factory/bin/gates.mjs            run all gates
-//   node .factory/bin/gates.mjs lint test  run only the named gates
-//   node .factory/bin/gates.mjs --json     machine-readable summary
+//   node .buildline/bin/gates.mjs            run all gates
+//   node .buildline/bin/gates.mjs lint test  run only the named gates
+//   node .buildline/bin/gates.mjs --json     machine-readable summary
 //
-// Managed by factory-cli. Configure gates in .factory/factory.json, not here.
+// Managed by buildline. Configure gates in .buildline/buildline.json, not here.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,15 +19,15 @@ const only = args.filter((a) => !a.startsWith('--'));
 
 let config;
 try {
-  config = JSON.parse(fs.readFileSync(path.join(root, '.factory', 'factory.json'), 'utf8'));
+  config = JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
 } catch (err) {
-  console.error(`Cannot read .factory/factory.json: ${err.message}`);
+  console.error(`Cannot read .buildline/buildline.json: ${err.message}`);
   process.exit(1);
 }
 
 const gates = (config.gates || []).filter((g) => g.command && (!only.length || only.includes(g.name)));
 if (!gates.length) {
-  const msg = 'No gates configured. Add commands to "gates" in .factory/factory.json.';
+  const msg = 'No gates configured. Add commands to "gates" in .buildline/buildline.json.';
   if (json) console.log(JSON.stringify({ ok: false, results: [], message: msg }));
   else console.log(msg);
   process.exit(1);

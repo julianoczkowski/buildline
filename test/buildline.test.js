@@ -8,9 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { detect } from '../src/detect.js';
 import { makeConfig, plan, apply, removePlan, applyRemove } from '../src/install.js';
 import { createFeature, findFeature, approve, setStatus, nextAction, slugify } from '../src/features.js';
+import { parseModel, launchArgs, stationPrompt } from '../src/models.js';
 
-const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'factory.js');
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'factory-test-'));
+const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'buildline.js');
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'buildline-test-'));
 const write = (root, rel, content) => {
   fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
   fs.writeFileSync(path.join(root, rel), content);
@@ -71,8 +72,8 @@ test('install preserves user content and merges settings', () => {
   assert.equal(s.model, 'opus');
   assert.ok(s.permissions.allow.includes('Bash(ls)'));
   assert.ok(JSON.stringify(s.hooks).includes('hook.mjs'));
-  assert.ok(fs.existsSync(path.join(root, '.claude/skills/factory-build/SKILL.md')));
-  assert.ok(fs.existsSync(path.join(root, '.factory/features/.gitkeep')));
+  assert.ok(fs.existsSync(path.join(root, '.claude/skills/buildline-build/SKILL.md')));
+  assert.ok(fs.existsSync(path.join(root, '.buildline/features/.gitkeep')));
 });
 
 test('install is idempotent and never duplicates blocks or hooks', () => {
@@ -81,7 +82,7 @@ test('install is idempotent and never duplicates blocks or hooks', () => {
   const again = plan(root, config);
   assert.deepEqual(again.plans.filter((p) => p.action !== 'unchanged').map((p) => p.rel), []);
   apply(root, again);
-  assert.equal(read(root, 'AGENTS.md').match(/factory:start/g).length, 1);
+  assert.equal(read(root, 'AGENTS.md').match(/buildline:start/g).length, 1);
   const s = JSON.parse(read(root, '.claude/settings.json'));
   assert.equal(s.hooks.PreToolUse.length, 1);
 });
@@ -89,11 +90,11 @@ test('install is idempotent and never duplicates blocks or hooks', () => {
 test('update keeps files the user edited', () => {
   const root = tmp();
   const config = install(root);
-  fs.appendFileSync(path.join(root, '.factory/stations/build.md'), '\nTeam rule.\n');
+  fs.appendFileSync(path.join(root, '.buildline/stations/build.md'), '\nTeam rule.\n');
   const p = plan(root, config);
-  assert.equal(p.plans.find((x) => x.rel === '.factory/stations/build.md').action, 'skip-modified');
+  assert.equal(p.plans.find((x) => x.rel === '.buildline/stations/build.md').action, 'skip-modified');
   apply(root, p);
-  assert.match(read(root, '.factory/stations/build.md'), /Team rule\./);
+  assert.match(read(root, '.buildline/stations/build.md'), /Team rule\./);
 });
 
 test('remove restores settings and keeps user work', () => {
@@ -106,8 +107,8 @@ test('remove restores settings and keeps user work', () => {
   assert.deepEqual(JSON.parse(read(root, '.claude/settings.json')), { model: 'opus' });
   assert.equal(read(root, 'CLAUDE.md').trim(), '# Mine');
   assert.ok(!fs.existsSync(path.join(root, '.claude/skills')));
-  assert.ok(fs.existsSync(path.join(root, '.factory/features/001-keep-this/spec.md')));
-  assert.ok(fs.existsSync(path.join(root, '.factory/factory.json')));
+  assert.ok(fs.existsSync(path.join(root, '.buildline/features/001-keep-this/spec.md')));
+  assert.ok(fs.existsSync(path.join(root, '.buildline/buildline.json')));
 });
 
 test('features: create, find, approve, move, next action', () => {
@@ -134,7 +135,7 @@ test('guard hook locks acceptance only during build/verify/review', () => {
   install(root);
   const f = createFeature(root, { title: 'Guarded', type: 'fix' }); // status: build
   const spec = path.join(f.path, 'spec.md');
-  const run = (input) => spawnSync(process.execPath, [path.join(root, '.factory/bin/hook.mjs'), 'guard'], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
+  const run = (input) => spawnSync(process.execPath, [path.join(root, '.buildline/bin/hook.mjs'), 'guard'], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
   const editAcceptance = { tool_name: 'Edit', tool_input: { file_path: spec, old_string: '**Given** TODO', new_string: '**Given** weaker' } };
   assert.equal(run(editAcceptance).status, 2);
   assert.equal(run({ tool_name: 'Edit', tool_input: { file_path: spec, old_string: '- R1 TODO', new_string: '- R1 ok' } }).status, 0);
@@ -145,22 +146,54 @@ test('guard hook locks acceptance only during build/verify/review', () => {
 test('gates script reports pass/fail and honours optional gates', () => {
   const root = tmp();
   install(root, { gates: [{ name: 'ok', command: 'node -e "0"' }, { name: 'soft', command: 'node -e "process.exit(1)"', required: false }] });
-  const res = spawnSync(process.execPath, [path.join(root, '.factory/bin/gates.mjs'), '--json'], { encoding: 'utf8' });
+  const res = spawnSync(process.execPath, [path.join(root, '.buildline/bin/gates.mjs'), '--json'], { encoding: 'utf8' });
   assert.equal(res.status, 0);
   assert.equal(JSON.parse(res.stdout).ok, true);
-  const cfg = JSON.parse(read(root, '.factory/factory.json'));
+  const cfg = JSON.parse(read(root, '.buildline/buildline.json'));
   cfg.gates[1].required = true;
-  write(root, '.factory/factory.json', JSON.stringify(cfg));
-  assert.equal(spawnSync(process.execPath, [path.join(root, '.factory/bin/gates.mjs')], { encoding: 'utf8' }).status, 1);
+  write(root, '.buildline/buildline.json', JSON.stringify(cfg));
+  assert.equal(spawnSync(process.execPath, [path.join(root, '.buildline/bin/gates.mjs')], { encoding: 'utf8' }).status, 1);
 });
 
 test('CLI: init -y, new, status --json', () => {
   const root = tmp();
   const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
   assert.equal(cli('init', '-y', '--agents', 'claude,cursor').status, 0);
-  assert.ok(fs.existsSync(path.join(root, '.cursor/rules/factory.mdc')));
+  assert.ok(fs.existsSync(path.join(root, '.cursor/rules/buildline.mdc')));
   assert.equal(cli('new', 'Hello world', '--type', 'feature').status, 0);
   const out = JSON.parse(cli('status', '--json').stdout);
   assert.equal(out.features[0].title, 'Hello world');
   assert.equal(cli('bogus').status, 1);
+});
+
+test('models: per-station routing reaches skills, subagents and launch commands', () => {
+  const root = tmp();
+  install(root, { models: { default: 'sonnet', plan: 'opus', review: 'codex:gpt-5-codex', verify: 'claude-opus-5-5' } });
+  const skill = (name) => read(root, `.claude/skills/${name}/SKILL.md`);
+  assert.match(skill('buildline-plan'), /^model: opus$/m);
+  assert.match(skill('buildline-build'), /^model: sonnet$/m);
+  assert.doesNotMatch(skill('buildline-review'), /^model:/m);
+  assert.match(skill('buildline-review'), /npx buildline step review \$ARGUMENTS --headless/);
+  assert.match(read(root, '.claude/agents/buildline-verifier.md'), /^model: claude-opus-5-5$/m);
+  assert.match(read(root, '.claude/agents/buildline-reviewer.md'), /^model: opus$/m); // routed elsewhere: template default kept
+
+  assert.deepEqual(parseModel('gemini'), { cli: 'gemini', model: null });
+  assert.deepEqual(parseModel('inherit'), { cli: 'claude', model: null });
+  assert.deepEqual(launchArgs({ cli: 'claude', model: 'opus' }, '/buildline-plan 001'), ['claude', ['--model', 'opus', '/buildline-plan 001']]);
+  assert.deepEqual(launchArgs({ cli: 'codex', model: null }, 'go', { headless: true }), ['codex', ['exec', '--sandbox', 'workspace-write', 'go']]);
+  assert.equal(stationPrompt('codex', 'review', '004'), 'Follow .buildline/stations/review.md step by step for feature 004. Project rules are in AGENTS.md.');
+});
+
+test('CLI: models set/preset and step --print', () => {
+  const root = tmp();
+  const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
+  cli('init', '-y', '--models', 'balanced');
+  assert.equal(JSON.parse(read(root, '.buildline/buildline.json')).models.build, 'sonnet');
+  assert.equal(cli('models', 'set', 'build', 'haiku').status, 0);
+  assert.match(read(root, '.claude/skills/buildline-build/SKILL.md'), /^model: haiku$/m);
+  assert.equal(cli('models', 'set', 'build', 'inherit').status, 0);
+  assert.doesNotMatch(read(root, '.claude/skills/buildline-build/SKILL.md'), /^model:/m);
+  cli('new', 'Thing');
+  assert.equal(cli('step', 'plan', '1', '--print').stdout.trim(), 'claude --model opus "/buildline-plan 001"');
+  assert.equal(cli('models', 'preset', 'nope').status, 1);
 });

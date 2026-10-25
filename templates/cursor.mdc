@@ -5,7 +5,7 @@ alwaysApply: true
 
 This project uses a software factory. Follow the rules in `AGENTS.md` (section "Software factory").
 
-To run a station, read its playbook in `.factory/stations/` and follow it:
+To run a station, read its playbook in `.buildline/stations/` and follow it:
 intake (`new.md`), `spec.md`, `design.md`, `plan.md`, `build.md`, `verify.md`, `review.md`, `ship.md`, `autopilot.md`.
 
-When the user says "factory" or asks what to do next, follow `.factory/stations/factory.md`.
+When the user says "buildline" or "factory" or asks what to do next, follow `.buildline/stations/buildline.md`.

@@ -1,3 +1,3 @@
 @./AGENTS.md
 
-When the user says "factory" or asks what to do next, follow `.factory/stations/factory.md`. Station playbooks live in `.factory/stations/`.
+When the user says "buildline" or "factory" or asks what to do next, follow `.buildline/stations/buildline.md`. Station playbooks live in `.buildline/stations/`.

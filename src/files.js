@@ -9,9 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export const MANIFEST = '.factory/manifest.json';
-const START = (c) => `${c[0]} factory:start — managed by factory-cli, edit outside this block ${c[1]}`.trim();
-const END = (c) => `${c[0]} factory:end ${c[1]}`.trim();
+export const MANIFEST = '.buildline/manifest.json';
+const START = (c) => `${c[0]} buildline:start — managed by buildline, edit outside this block ${c[1]}`.trim();
+const END = (c) => `${c[0]} buildline:end ${c[1]}`.trim();
 const COMMENT = { md: ['<!--', '-->'], hash: ['#', ''] };
 
 export const hash = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -33,7 +33,7 @@ export function saveManifest(root, manifest) {
 function blockRegex(style) {
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const c = COMMENT[style];
-  return new RegExp(`${esc(c[0])} factory:start[^\\n]*\\n[\\s\\S]*?${esc(END(c))}\\n?`);
+  return new RegExp(`${esc(c[0])} buildline:start[^\\n]*\\n[\\s\\S]*?${esc(END(c))}\\n?`);
 }
 
 /**

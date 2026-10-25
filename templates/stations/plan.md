@@ -41,4 +41,4 @@ Then write a one-paragraph `## Plan` summary in `spec.md` (approach, order, risk
 
 - Set status to `build`. Append a `history` entry.
 - **Approval:** at autonomy ≤ 2, ask the person to approve the plan and record `approvals.plan` only on an explicit yes. At L3+, continue without waiting.
-- Next: `/factory-build <id>`, or `/factory-autopilot <id>` to run build → verify → review unattended.
+- Next: `/buildline-build <id>`, or `/buildline-autopilot <id>` to run build → verify → review unattended.

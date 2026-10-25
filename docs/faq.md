@@ -1,13 +1,13 @@
 # FAQ and troubleshooting
 
 **Does it work without Claude Code?**
-Yes. Codex, Copilot and others read `AGENTS.md`; Cursor gets a rule; Gemini CLI gets `GEMINI.md`. Say "follow `.factory/stations/factory.md`". Claude Code adds skills, subagents, the acceptance-lock hook and `/goal`.
+Yes. Codex, Copilot and others read `AGENTS.md`; Cursor gets a rule; Gemini CLI gets `GEMINI.md`. Say "follow `.buildline/stations/buildline.md`". Claude Code adds skills, subagents, the acceptance-lock hook and `/goal`.
 
 **Will it mess up my existing `CLAUDE.md` / `AGENTS.md` / settings?**
 No. It adds one marked block to markdown files and merges into `.claude/settings.json` without removing anything. Run `init --dry-run` to see the plan first. `remove` restores your settings.
 
 **I already use Spec Kit / BMAD / OpenSpec.**
-Factory installs alongside them and doesn't read or change their folders. It's simplest to pick one pipeline per repo; if you migrate, ask Claude to convert an existing spec into a factory feature.
+Buildline installs alongside them and doesn't read or change their folders. It's simplest to pick one pipeline per repo; if you migrate, ask Claude to convert an existing spec into a factory feature.
 
 **It's too much process for a typo.**
 Don't open a feature for trivial edits. For small bugs use `--type fix`: no spec, design or plan, just a reproduction test, the fix, gates and verification.
@@ -16,13 +16,13 @@ Don't open a feature for trivial edits. For small bugs use `--type fix`: no spec
 Claude Code ignores project allow rules until the workspace is trusted. Open `claude` interactively in the project once and accept the trust dialog.
 
 **The acceptance guard blocked an edit I wanted.**
-That's on purpose during build, verify and review. Move the feature back to `spec` (`npx factory-cli move <id> spec` or the dashboard), change the scenario, approve, and continue.
+That's on purpose during build, verify and review. Move the feature back to `spec` (`npx buildline move <id> spec` or the dashboard), change the scenario, approve, and continue.
 
 **Gates are failing before I changed anything.**
-Build stations stop on a red baseline. Fix it, or mark a flaky gate `"required": false` in `factory.json` while you deal with it.
+Build stations stop on a red baseline. Fix it, or mark a flaky gate `"required": false` in `buildline.json` while you deal with it.
 
 **The dashboard says "lost connection".**
-The `npx factory-cli ui` process was stopped. Start it again.
+The `npx buildline ui` process was stopped. Start it again.
 
 **How do I see what changed for one feature?**
 `git log --grep "<id>/"`. Commits are tagged `[<id>/T<n>]`.

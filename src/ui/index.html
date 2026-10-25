@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Factory Dashboard</title>
+<title>Buildline Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M8 1L15 14H1z%22 fill=%22%23e5a400%22/%3E%3C/svg%3E">
 <style>
 :root {
@@ -51,6 +51,7 @@ main { padding: 16px 20px 40px; }
 .col { background: var(--panel-2); border-radius: 12px; padding: 10px; min-height: 200px; }
 .col h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 2px 4px 10px; display: flex; justify-content: space-between; }
 .col h2 small { color: var(--ink-3); font-weight: 500; }
+.col .model { font-family: var(--mono); color: var(--ink-2); }
 .col .owner { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); text-transform: none; letter-spacing: 0; margin-top: 1px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--shadow); cursor: pointer; display: block; width: 100%; text-align: left; }
 .card:hover { border-color: var(--accent); }
@@ -129,9 +130,9 @@ dialog h2 { margin: 0 0 12px; font-size: 17px; }
 </head>
 <body>
 <header>
-  <div class="brand"><span class="mark">▲</span> factory</div>
+  <div class="brand"><span class="mark">▲</span> buildline</div>
   <span class="project" id="project"></span>
-  <span class="chip accent" id="autonomy" title="Autonomy level: set in .factory/factory.json"></span>
+  <span class="chip accent" id="autonomy" title="Autonomy level: set in .buildline/buildline.json"></span>
   <nav class="tabs" role="tablist">
     <button role="tab" aria-selected="true" data-view="board">Board</button>
     <button role="tab" aria-selected="false" data-view="context">Context</button>
@@ -163,7 +164,7 @@ dialog h2 { margin: 0 0 12px; font-size: 17px; }
 <div class="toast" id="toast" role="status"></div>
 
 <script>
-const TOKEN = '__FACTORY_TOKEN__';
+const TOKEN = '__BUILDLINE_TOKEN__';
 const COLUMNS = [
   ['spec', 'Spec', 'PM'], ['design', 'Design', 'designer · eng'], ['plan', 'Plan', 'eng'], ['build', 'Build', 'agent'],
   ['verify', 'Verify', 'agent'], ['review', 'Review', 'agent + human'], ['ship', 'Ship', 'eng'], ['done', 'Done', ''],
@@ -171,11 +172,11 @@ const COLUMNS = [
 let S = null, view = 'board', openId = null, drawerTab = 'spec', editing = false, ctxPath = null, ctxEditing = false;
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const me = () => { try { return localStorage.getItem('factory.me') || ''; } catch { return ''; } };
-const setMe = (v) => { try { localStorage.setItem('factory.me', v); } catch {} };
+const me = () => { try { return localStorage.getItem('buildline.me') || ''; } catch { return ''; } };
+const setMe = (v) => { try { localStorage.setItem('buildline.me', v); } catch {} };
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', 'x-factory-token': TOKEN, ...(opts.headers || {}) } });
+  const res = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', 'x-buildline-token': TOKEN, ...(opts.headers || {}) } });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
@@ -228,11 +229,13 @@ function renderBoard() {
   if (!S.features.length) {
     return `<div class="hero"><h1>No features yet</h1><p>Every change in this project flows through the factory: spec, design, plan, build, verify, review, ship.</p>
       <p><button class="btn primary" onclick="newFeature()">+ Start the first feature</button></p>
-      <p style="font-size:13px">Developers can also type <code>/factory-new &lt;idea&gt;</code> in Claude Code.</p></div>`;
+      <p style="font-size:13px">Developers can also type <code>/buildline-new &lt;idea&gt;</code> in Claude Code.</p></div>`;
   }
   return `<div class="board">${COLUMNS.map(([key, label, owner]) => {
     const items = S.features.filter((f) => f.status === key);
-    return `<section class="col" aria-label="${label}"><h2><span>${label} <span class="owner">${owner}</span></span><small>${items.length}</small></h2>${items.map(card).join('') || '<div class="empty">—</div>'}</section>`;
+    const model = (S.config.models || {})[key] ?? S.config.models?.default;
+    const modelTag = model && model !== 'inherit' ? ` · <span class="model" title="Model for this station (buildline models)">${esc(model)}</span>` : '';
+    return `<section class="col" aria-label="${label}"><h2><span>${label} <span class="owner">${owner}${modelTag}</span></span><small>${items.length}</small></h2>${items.map(card).join('') || '<div class="empty">—</div>'}</section>`;
   }).join('')}</div>`;
 }
 async function renderContext() {
@@ -260,7 +263,7 @@ async function renderDrawer() {
   if (!f) return closeDrawer();
   const d = $('#drawer');
   if (editing && d.classList.contains('open') && $('#specEditor')) return; // don't clobber an open editor
-  const dir = `.factory/features/${f.dir}`;
+  const dir = `.buildline/features/${f.dir}`;
   let body = '';
   if (drawerTab === 'spec' || drawerTab === 'progress') {
     const { content } = await api(`/api/file?path=${encodeURIComponent(`${dir}/${drawerTab}.md`)}`).catch(() => ({ content: '_Missing file._' }));
@@ -321,7 +324,7 @@ async function refresh() {
     const next = await api('/api/state');
     const changed = JSON.stringify(next) !== JSON.stringify(S);
     S = next; if (changed) await render();
-  } catch (e) { toast('Dashboard lost connection: is `factory ui` still running?'); }
+  } catch (e) { toast('Dashboard lost connection: is `buildline ui` still running?'); }
 }
 refresh();
 setInterval(() => { if (!document.hidden && !editing && !ctxEditing) refresh(); }, 3000);

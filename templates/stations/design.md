@@ -4,7 +4,7 @@ Goal: decide *how it should look and behave* (UX) and *how it should be built* (
 
 Resolve the feature from `$ARGUMENTS`, or use the most recent feature with status `design`.
 
-Read `spec.md` (Brief, Requirements, Acceptance), `.factory/context/design.md` and `.factory/context/architecture.md`.
+Read `spec.md` (Brief, Requirements, Acceptance), `.buildline/context/design.md` and `.buildline/context/architecture.md`.
 
 ## Part A: UX design (`spec.md → ## Design → ### Experience`)
 
@@ -19,9 +19,9 @@ Write down, briefly:
 5. **Accessibility**: keyboard path, focus order, labels for icon-only controls, contrast, motion. Meet WCAG 2.2 AA unless `principles.md` says otherwise.
 6. **Responsive behaviour**: what changes at small widths.
 
-Use design tokens from `.factory/context/design.md` by name. Never invent raw hex values or pixel sizes if a token exists.
+Use design tokens from `.buildline/context/design.md` by name. Never invent raw hex values or pixel sizes if a token exists.
 
-Optional: for visual work, build a quick throwaway prototype (a single HTML file or a story) and share a screenshot before committing to the build. Ask the `factory-design-reviewer` subagent to check the design against the design system and the acceptance scenarios.
+Optional: for visual work, build a quick throwaway prototype (a single HTML file or a story) and share a screenshot before committing to the build. Ask the `buildline-design-reviewer` subagent to check the design against the design system and the acceptance scenarios.
 
 ## Part B: Technical design (`spec.md → ## Design → ### Technical`)
 
@@ -36,4 +36,4 @@ Follow the conventions in `architecture.md`. If you're breaking one, say so expl
 
 - Set status to `plan`. Append a `history` entry.
 - **Approval:** at autonomy L1, ask for explicit design approval and record `approvals.design` only when given. At other levels, the designer can approve UX in the dashboard; flag the feature as waiting for design approval if UX changed and nobody has approved it yet.
-- Next: `/factory-plan <id>`.
+- Next: `/buildline-plan <id>`.

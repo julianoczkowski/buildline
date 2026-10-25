@@ -6,7 +6,7 @@ Resolve the feature from `$ARGUMENTS`, or use the most recent feature with statu
 
 ## 1. Final check
 
-- `node .factory/bin/gates.mjs` is green on the latest commit.
+- `node .buildline/bin/gates.mjs` is green on the latest commit.
 - All tasks have `"passes": true`; `## Verification` shows every scenario passing; `## Review` has no open blockers.
 
 ## 2. Pull request
@@ -20,13 +20,13 @@ Resolve the feature from `$ARGUMENTS`, or use the most recent feature with statu
 
 Specs are written for one change; the context files carry what lasts. Update them in the same PR:
 
-- `.factory/context/architecture.md`: new modules, data model changes, decisions made in `### Technical` that future work must respect.
-- `.factory/context/design.md`: new components, patterns or tokens introduced.
-- `.factory/context/product.md`: new capabilities and glossary terms.
-- `AGENTS.md` (outside the factory block) or `.factory/principles.md`: any **recurring** mistake an agent made during this feature that a one-line rule would have prevented. Keep these lean; delete rules that no longer earn their place.
+- `.buildline/context/architecture.md`: new modules, data model changes, decisions made in `### Technical` that future work must respect.
+- `.buildline/context/design.md`: new components, patterns or tokens introduced.
+- `.buildline/context/product.md`: new capabilities and glossary terms.
+- `AGENTS.md` (outside the Buildline block) or `.buildline/principles.md`: any **recurring** mistake an agent made during this feature that a one-line rule would have prevented. Keep these lean; delete rules that no longer earn their place.
 
 ## 4. Close
 
 - Set status to `done`, fill `metrics.shippedAt`, append a `history` entry with the PR link.
 - Append a final `progress.md` entry.
-- Suggest the next feature in the queue (`/factory`).
+- Suggest the next feature in the queue (`/buildline`).

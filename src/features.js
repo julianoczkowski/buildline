@@ -1,4 +1,4 @@
-// Reading and writing factory features (.factory/features/<id>-<slug>/).
+// Reading and writing factory features (.buildline/features/<id>-<slug>/).
 // The CLI, the web dashboard and agents all share this on-disk format.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,7 +8,7 @@ export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 're
 export const TYPES = ['fix', 'feature', 'epic'];
 export const APPROVAL_STAGES = ['spec', 'design', 'plan'];
 
-export const featuresDir = (root) => path.join(root, '.factory', 'features');
+export const featuresDir = (root) => path.join(root, '.buildline', 'features');
 const today = () => new Date().toISOString().slice(0, 10);
 const now = () => new Date().toISOString();
 
@@ -93,7 +93,7 @@ export function createFeature(root, { title, type = 'feature', owner = null, par
   fs.writeFileSync(path.join(dir, 'feature.json'), JSON.stringify(feature, null, 2) + '\n');
   // Prefer the project's own (possibly customised) templates over the bundled ones.
   for (const name of ['spec.md', 'progress.md']) {
-    const local = path.join(root, '.factory', 'templates', name);
+    const local = path.join(root, '.buildline', 'templates', name);
     const source = fs.existsSync(local) ? local : path.join(templatesDir, 'feature', name);
     fs.writeFileSync(path.join(dir, name), render(fs.readFileSync(source, 'utf8'), vars));
   }
@@ -123,22 +123,22 @@ export function nextAction(feature, autonomy = 2) {
   if (feature.blocked) return { who: 'human', text: `blocked: ${feature.blocked}` };
   switch (feature.status) {
     case 'spec':
-      if (/TODO/.test(readSpecSection(feature, 'Acceptance') || 'TODO')) return { who: 'pm', text: 'needs requirements & acceptance', cmd: `/factory-spec ${feature.id}` };
-      return autonomy <= 3 && !a.spec ? { who: 'pm', text: 'waiting on spec approval', cmd: `factory approve ${feature.id} spec` } : { who: 'agent', text: 'ready for design', cmd: `/factory-design ${feature.id}` };
+      if (/TODO/.test(readSpecSection(feature, 'Acceptance') || 'TODO')) return { who: 'pm', text: 'needs requirements & acceptance', cmd: `/buildline-spec ${feature.id}` };
+      return autonomy <= 3 && !a.spec ? { who: 'pm', text: 'waiting on spec approval', cmd: `buildline approve ${feature.id} spec` } : { who: 'agent', text: 'ready for design', cmd: `/buildline-design ${feature.id}` };
     case 'design':
-      return { who: 'designer', text: 'needs UX / technical design', cmd: `/factory-design ${feature.id}` };
+      return { who: 'designer', text: 'needs UX / technical design', cmd: `/buildline-design ${feature.id}` };
     case 'plan':
-      return { who: 'eng', text: 'needs a task plan', cmd: `/factory-plan ${feature.id}` };
+      return { who: 'eng', text: 'needs a task plan', cmd: `/buildline-plan ${feature.id}` };
     case 'build':
-      if (feature.type !== 'fix' && autonomy <= 3 && !a.spec) return { who: 'pm', text: 'waiting on spec approval', cmd: `factory approve ${feature.id} spec` };
-      if (feature.type !== 'fix' && autonomy <= 2 && !a.plan && tasks.length) return { who: 'eng', text: 'waiting on plan approval', cmd: `factory approve ${feature.id} plan` };
-      return { who: 'agent', text: tasks.length ? `${passing}/${tasks.length} tasks passing` : 'ready to build', cmd: autonomy >= 3 ? `factory run ${feature.id}` : `/factory-build ${feature.id}` };
+      if (feature.type !== 'fix' && autonomy <= 3 && !a.spec) return { who: 'pm', text: 'waiting on spec approval', cmd: `buildline approve ${feature.id} spec` };
+      if (feature.type !== 'fix' && autonomy <= 2 && !a.plan && tasks.length) return { who: 'eng', text: 'waiting on plan approval', cmd: `buildline approve ${feature.id} plan` };
+      return { who: 'agent', text: tasks.length ? `${passing}/${tasks.length} tasks passing` : 'ready to build', cmd: autonomy >= 3 ? `buildline run ${feature.id}` : `/buildline-build ${feature.id}` };
     case 'verify':
-      return { who: 'agent', text: 'ready for verification', cmd: `/factory-verify ${feature.id}` };
+      return { who: 'agent', text: 'ready for verification', cmd: `/buildline-verify ${feature.id}` };
     case 'review':
-      return { who: 'agent', text: 'ready for review', cmd: `/factory-review ${feature.id}` };
+      return { who: 'agent', text: 'ready for review', cmd: `/buildline-review ${feature.id}` };
     case 'ship':
-      return { who: 'eng', text: 'ready to ship: open PR', cmd: `/factory-ship ${feature.id}` };
+      return { who: 'eng', text: 'ready to ship: open PR', cmd: `/buildline-ship ${feature.id}` };
     case 'done':
       return { who: null, text: 'shipped' };
     default:

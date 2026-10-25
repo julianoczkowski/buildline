@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Claude Code hooks for the factory. Managed by factory-cli.
+// Claude Code hooks for the factory. Managed by buildline.
 //
 //   session-start  prints a short factory briefing into the new session's context
 //   guard          blocks edits to a spec's "## Acceptance" section while the
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = process.env.CLAUDE_PROJECT_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const featuresDir = path.join(root, '.factory', 'features');
+const featuresDir = path.join(root, '.buildline', 'features');
 const mode = process.argv[2];
 
 function readJson(file) {
@@ -29,9 +29,9 @@ function features() {
 }
 
 function sessionStart() {
-  const config = readJson(path.join(root, '.factory', 'factory.json')) || {};
+  const config = readJson(path.join(root, '.buildline', 'buildline.json')) || {};
   const active = features().filter((f) => f.data.status !== 'done');
-  const lines = [`[factory] autonomy L${config.autonomy ?? 2}. Rules: AGENTS.md › Software factory. Type /factory for status and next steps.`];
+  const lines = [`[buildline] autonomy L${config.autonomy ?? 2}. Rules: AGENTS.md › Software factory. Type /buildline for status and next steps.`];
   for (const { dir, data } of active.slice(0, 8)) {
     const tasks = data.tasks || [];
     const done = tasks.filter((t) => t.passes).length;
@@ -65,7 +65,7 @@ function guard(input) {
 
   if (acceptance(before) !== acceptance(after)) {
     process.stderr.write(
-      `factory guard: "## Acceptance" in ${path.relative(root, file)} is locked while the feature is in "${feature.status}". ` +
+      `buildline guard: "## Acceptance" in ${path.relative(root, file)} is locked while the feature is in "${feature.status}". ` +
         'If a scenario is wrong, stop and ask the spec owner; they can change it at the spec station.\n',
     );
     process.exit(2);
@@ -84,7 +84,7 @@ process.stdin.on('end', () => {
     else if (mode === 'guard') guard(input);
   } catch (err) {
     // A broken hook must never break the session.
-    process.stderr.write(`factory hook error: ${err.message}\n`);
+    process.stderr.write(`buildline hook error: ${err.message}\n`);
   }
 });
 if (process.stdin.isTTY) process.stdin.emit('end');

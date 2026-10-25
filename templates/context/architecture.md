@@ -1,6 +1,6 @@
 # Architecture
 
-> TODO: Run `/factory-onboard` (or fill this in by hand). Prefer bullets and file paths over prose.
+> TODO: Run `/buildline-onboard` (or fill this in by hand). Prefer bullets and file paths over prose.
 
 ## Stack
 {{stackBullets}}

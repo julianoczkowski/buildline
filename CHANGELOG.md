@@ -2,12 +2,13 @@
 
 ## 0.1.0 · 2026-10-25
 
-First private release.
+First release.
 
-- `npx factory-cli` interactive setup with stack detection (JS/TS, Python, Go, Rust, Ruby, PHP, Java/Kotlin, .NET, Dart/Flutter, Swift) and gate discovery.
+- `npx buildline` interactive setup with stack detection (JS/TS, Python, Go, Rust, Ruby, PHP, Java/Kotlin, .NET, Dart/Flutter, Swift) and gate discovery.
 - Stations: front door, onboard (greenfield + brownfield), intake, spec, design, plan, build, verify, review, ship, autopilot.
-- Claude Code: 11 skills, 5 subagents, SessionStart briefing and acceptance-lock hooks, `/goal` autopilot via `factory run`.
+- Models per station: Claude model aliases or ids, or hand a station to Codex CLI or Gemini CLI. `buildline models`, `buildline step`, and presets (`session`, `balanced`, `budget`, `second`).
+- Claude Code: 11 skills, 5 subagents, SessionStart briefing and acceptance-lock hooks, `/goal` autopilot via `buildline run`.
 - Agent-agnostic: AGENTS.md block, Cursor rule, GEMINI.md import.
-- Local dashboard (`factory ui`): board, spec editing, approvals, context editor.
+- Local dashboard (`buildline ui`): board, spec editing, approvals, context editor.
 - Safe install/update/remove: marked blocks, hash-tracked managed files, settings merge.
 - Optional GitHub Actions workflow: gates on PRs + Claude review against the spec.

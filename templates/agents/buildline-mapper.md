@@ -1,5 +1,5 @@
 ---
-name: factory-mapper
+name: buildline-mapper
 description: Maps an existing codebase (product purpose, architecture, conventions, design system, commands, hazards) into a compact summary for the factory's context files. Use during onboarding of an existing project or when the context files are stale.
 tools: Read, Grep, Glob, Bash
 model: sonnet

@@ -1,10 +1,10 @@
 {
-  "name": "factory-cli",
+  "name": "buildline",
   "version": "0.1.0",
-  "description": "Install an AI software factory into any project. Spec-driven pipeline for Claude Code (and any AGENTS.md-compatible agent), for developers, designers and product managers.",
+  "description": "Install an AI software factory into any project. A spec-driven pipeline for Claude Code (and any AGENTS.md-compatible agent), for developers, designers and product managers.",
   "type": "module",
   "bin": {
-    "factory": "bin/factory.js"
+    "buildline": "bin/buildline.js"
   },
   "files": [
     "bin",
@@ -18,12 +18,27 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "start": "node bin/factory.js"
+    "start": "node bin/buildline.js"
   },
-  "keywords": ["claude-code", "ai", "agents", "software-factory", "spec-driven", "agents-md", "cli"],
+  "keywords": [
+    "claude-code",
+    "ai",
+    "agents",
+    "software-factory",
+    "spec-driven",
+    "agents-md",
+    "cursor",
+    "codex",
+    "cli"
+  ],
   "author": "Julian Oczkowski",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/julianoczkowski/buildline.git"
+  },
+  "homepage": "https://github.com/julianoczkowski/buildline#readme",
+  "bugs": "https://github.com/julianoczkowski/buildline/issues",
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "picocolors": "^1.1.1"

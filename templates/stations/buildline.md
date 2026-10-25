@@ -4,20 +4,20 @@ You are the factory's front desk. Your job is to work out what the person needs 
 
 ## 1. Read the floor
 
-- Read `.factory/factory.json` (autonomy level, gates, team roles).
-- List `.factory/features/*/feature.json`. For each, note `id`, `title`, `type`, `status`, `owner`, open approvals, and task progress (`passes: true` count / total).
-- If `.factory/context/product.md` still contains `TODO`, the factory has not been onboarded yet.
+- Read `.buildline/buildline.json` (autonomy level, gates, team roles).
+- List `.buildline/features/*/feature.json`. For each, note `id`, `title`, `type`, `status`, `owner`, open approvals, and task progress (`passes: true` count / total).
+- If `.buildline/context/product.md` still contains `TODO`, the factory has not been onboarded yet.
 
 ## 2. Show a compact status
 
 ```
-Factory · <project> · autonomy L<n>
+Buildline · <project> · autonomy L<n>
   003  Checkout redesign       design   ▸ waiting on design approval
   004  Fix double-charge bug   build    ▸ 2/3 tasks passing
   005  Saved carts             spec     ▸ needs acceptance scenarios
 ```
 
-Then say the single most useful next action and the exact command, for example: "Next: `/factory-build 004` to finish the last task."
+Then say the single most useful next action and the exact command, for example: "Next: `/buildline-build 004` to finish the last task."
 
 ## 3. Route the request
 
@@ -37,12 +37,12 @@ If the person said what they want (`$ARGUMENTS` or their message), route it:
 
 If onboarding is missing, recommend `onboard` first but don't force it for a quick fix.
 
-Hand over by reading `.factory/stations/<station>.md` and continuing with it in the same session; tell the person which station you're running.
+Hand over by reading `.buildline/stations/<station>.md` and continuing with it in the same session; tell the person which station you're running.
 
 ## Role hints
 
 Adapt your language to who is asking. If unsure, ask once: "Are you working on this as a PM, designer, or developer?"
 
 - **PMs** care about scope, acceptance, status and trade-offs. Avoid code details unless asked.
-- **Designers** care about flows, states, components and visual consistency. Point them to `spec.md → ## Design` and `.factory/context/design.md`.
+- **Designers** care about flows, states, components and visual consistency. Point them to `spec.md → ## Design` and `.buildline/context/design.md`.
 - **Developers** want the next task, the gates, and the diff.
