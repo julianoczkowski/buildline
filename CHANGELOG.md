@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 · 2026-10-25
 - Docs: how to upgrade an existing project to a new release (`npx buildline@latest update`), in the README, Getting started, FAQ and CLI reference.
 
 ## 0.5.0 · 2026-10-25
