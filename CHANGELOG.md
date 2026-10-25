@@ -1,7 +1,6 @@
 # Changelog
 
-## Unreleased
-
+## 0.4.0 · 2026-10-25
 - Models are now yours to pick. The picker (`buildline models`, and during `init`) lists the aliases your installed Claude Code advertises, every Claude model from the Anthropic API when `ANTHROPIC_API_KEY` is set, Codex and Gemini when installed, and accepts any typed model name or id. Choose by phase (planning, building, checking) or per station.
 - `buildline models check` reports what each choice resolves to today, e.g. `fable → claude-fable-5-1`.
 - `buildline models set` accepts phases: `models set planning fable`. `init --models` takes `planning=fable,building=opus`.
