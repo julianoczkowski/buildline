@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Docs: how to upgrade an existing project to a new release (`npx buildline@latest update`), in the README, Getting started, FAQ and CLI reference.
+
 ## 0.5.0 · 2026-10-25
 - `buildline watch` (also `top`): a live view of the line in your terminal. Every feature runs along its own track through the stations, with the model each station uses, who it's waiting on, its tasks and history, and a live event log. Approve and open stations from the keyboard. `--once` prints a single frame.
 
