@@ -20,7 +20,7 @@ independent verification, and a clear place for developers, designers and produc
 npx buildline
 ```
 
-**[Website & docs](https://julianoczkowski.github.io/buildline/)** · [Quick start](#quick-start) · [How it works](#how-it-works) · [Models per station](#models-per-station) · [Watch](#watch-the-line) · [Dashboard](#the-dashboard)
+**[Website & docs](https://julianoczkowski.github.io/buildline/)** · [Quick start](#quick-start) · [How it works](#how-it-works) · [Models per station](#models-per-station) · [Watch](#watch-the-line) · [Dashboard](#the-dashboard) · [Upgrading](#upgrading)
 
 </div>
 
@@ -219,6 +219,14 @@ Read them on the **[docs site](https://julianoczkowski.github.io/buildline/)**, 
 | [CLI reference](docs/cli.md) | every command and option |
 | [FAQ](docs/faq.md) | troubleshooting |
 | [Research notes](docs/research.md) | the thinking behind the design, with sources |
+
+## Upgrading
+
+```bash
+npx buildline@latest update     # in your project; add --dry-run to preview
+```
+
+It shows every change first, refreshes Buildline's playbooks, skills, hooks and blocks, **keeps files you've edited**, and never touches your config, context or features. Keep `@latest` so `npx` doesn't reuse an old cached copy. [More on upgrading →](docs/getting-started.md#upgrading) · [Changelog](CHANGELOG.md)
 
 ## Requirements
 

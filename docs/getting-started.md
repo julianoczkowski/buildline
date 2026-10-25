@@ -64,3 +64,27 @@ npx buildline doctor
 ```
 
 It checks Node, git, Claude Code, the config, gates, hooks, missing or customised managed files, unfilled context, and broken feature files.
+
+## Upgrading
+
+When a new Buildline release comes out, run this in your project:
+
+```bash
+npx buildline@latest update
+```
+
+Keep the `@latest`: without it, `npx` may reuse an older cached copy.
+
+`update` shows the version change (for example `v0.4.0 → v0.5.0`) and lists every file before it writes anything. Then it:
+
+- refreshes Buildline's own files: station playbooks, skills, subagents, hooks, and the marked blocks in `AGENTS.md` and `CLAUDE.md`
+- **keeps any managed file you've edited**, and reports it as kept
+- never touches `buildline.json` (including your models), `principles.md`, `context/` or your features
+
+```bash
+npx buildline@latest update --dry-run   # preview, write nothing
+npx buildline@latest update --force     # also replace files you edited with the new versions
+npx buildline@latest doctor             # check the setup afterwards
+```
+
+Commit the result so the whole team gets the same version. New CLI commands, such as `watch`, work as soon as you run them with `@latest`; `update` is what brings your project's playbooks and skills up to the release. See the [changelog](../CHANGELOG.md) for what changed.

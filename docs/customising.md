@@ -14,7 +14,7 @@ Buildline is meant to be bent to your team. Everything is plain markdown and JSO
 | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | yours, with a managed block | only the block between `buildline:start` / `buildline:end` |
 | `.claude/settings.json` | yours | Buildline hooks and gate permissions merged in, nothing removed |
 
-Managed files are tracked by content hash in `.buildline/manifest.json`. If you edit one, `update` reports it as **kept**; `update --force` overwrites it.
+Managed files are tracked by content hash in `.buildline/manifest.json`. If you edit one, `update` reports it as **kept**; `update --force` overwrites it. To upgrade to a new release, run `npx buildline@latest update` ([more](getting-started.md#upgrading)).
 
 ## Common changes
 

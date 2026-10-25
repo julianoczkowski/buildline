@@ -21,7 +21,7 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | `run [id]` | Autopilot via Claude Code `/goal`, using the build model. Requires autonomy ≥ 3. | `--headless`, `--print`, `--force` |
 | `gates [names…]` | Run quality gates (all, or the named ones). | |
 | `doctor` | Check Node, git, Claude Code, config, models (and the CLIs they need), gates, hooks, managed files, context, features. | |
-| `update` | Refresh managed files to this version; keep edited files. | `--dry-run`, `--force` |
+| `update` | Refresh managed files to this version; keep edited files. Run it as `npx buildline@latest update` to upgrade ([how](getting-started.md#upgrading)). | `--dry-run`, `--force` |
 | `remove` (`uninstall`) | Remove managed files and blocks; keep your work. | `-y`, `--dry-run` |
 
 Feature ids accept `7`, `007`, `007-saved-carts` or a slug fragment.

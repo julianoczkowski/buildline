@@ -12,6 +12,9 @@ Buildline installs alongside them and doesn't read or change their folders. It's
 **It's too much process for a typo.**
 Don't open a feature for trivial edits. For small bugs use `--type fix`: no spec, design or plan, just a reproduction test, the fix, gates and verification.
 
+**How do I upgrade to a new release?**
+Run `npx buildline@latest update` in your project. It refreshes Buildline's files, keeps any you've edited, and leaves your config, context and features alone. Details in [Getting started → Upgrading](getting-started.md#upgrading).
+
 **Claude ignores `permissions.allow` in headless mode.**
 Claude Code ignores project allow rules until the workspace is trusted. Open `claude` interactively in the project once and accept the trust dialog.
 
