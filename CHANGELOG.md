@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 · 2026-10-25
+## 0.3.0 · 2026-10-25
 
 First release.
 
@@ -12,3 +12,5 @@ First release.
 - Local dashboard (`buildline ui`): board, spec editing, approvals, context editor.
 - Safe install/update/remove: marked blocks, hash-tracked managed files, settings merge.
 - Optional GitHub Actions workflow: gates on PRs + Claude review against the spec.
+
+Versions 0.1.0–0.2.3 of the `buildline` name were used by an unrelated package in 2014 and can't be reused on npm, so Buildline starts at 0.3.0.

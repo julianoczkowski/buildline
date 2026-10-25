@@ -1,6 +1,6 @@
 {
   "name": "buildline",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Install an AI software factory into any project. A spec-driven pipeline for Claude Code (and any AGENTS.md-compatible agent), for developers, designers and product managers.",
   "type": "module",
   "bin": {
