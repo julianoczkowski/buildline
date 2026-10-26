@@ -55,7 +55,7 @@ main { padding: 16px 20px 40px; }
 .col .owner { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); text-transform: none; letter-spacing: 0; margin-top: 1px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--shadow); cursor: pointer; display: block; width: 100%; text-align: left; }
 .card:hover { border-color: var(--accent); }
-.card .top { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.card .top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
 .card .id { font: 12px var(--mono); color: var(--ink-3); }
 .card .title { font-weight: 600; line-height: 1.3; }
 .card .next { font-size: 12px; line-height: 1.35; color: var(--ink-2); margin-top: 6px; display: flex; gap: 6px; align-items: baseline; }
@@ -68,6 +68,20 @@ main { padding: 16px 20px 40px; }
 .who-designer { background: var(--blue-soft); color: var(--blue); }
 .who-eng, .who-agent { background: var(--green-soft); color: var(--green); }
 .who-human { background: var(--red-soft); color: var(--red); }
+.live { font-size: 12px; line-height: 1.4; margin-top: 6px; display: flex; gap: 6px; align-items: baseline; color: var(--ink-2); min-width: 0; }
+.live > span { min-width: 0; flex: 1; }
+.live .line { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.live .wrap { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.live b { font-weight: 600; }
+.live.working b { color: var(--ink); }
+.live.waiting b, .live.blocked b { color: var(--red); }
+.live .dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); align-self: center; animation: pulse 1.2s ease-in-out infinite; }
+.live.waiting .dot, .live.blocked .dot { background: var(--red); }
+.live.blocked .dot { animation: none; }
+.live code { font-size: 11px; background: none; padding: 0; }
+.card.is-working { border-color: var(--accent); }
+@keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+@media (prefers-reduced-motion: reduce) { .live .dot { animation: none; } }
 .progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 8px; }
 .progress > i { display: block; height: 100%; background: var(--green); }
 .approvals { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
@@ -217,13 +231,32 @@ function md(src) {
 function card(f) {
   const tasks = f.tasks || [], done = tasks.filter((t) => t.passes).length;
   const ap = Object.keys(f.approvals || {});
-  return `<button class="card" data-id="${esc(f.id)}">
-    <div class="top"><span class="id">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span>${f.blocked ? '<span class="chip type-fix">blocked</span>' : ''}</div>
+  return `<button class="card${f.live?.working ? ' is-working' : ''}" data-id="${esc(f.id)}">
+    <div class="top"><span class="id">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span></div>
     <div class="title">${esc(f.title)}</div>
     ${tasks.length ? `<div class="progress" title="${done}/${tasks.length} tasks passing"><i style="width:${(done / tasks.length) * 100}%"></i></div>` : ''}
-    ${f.next?.text && f.status !== 'done' ? `<div class="next">${f.next.who ? `<span class="who who-${esc(f.next.who)}">${esc(f.next.who)}</span>` : ''}${esc(f.next.text)}</div>` : ''}
+    ${liveLine(f)}
+    ${f.next?.text && f.status !== 'done' && !f.blocked ? `<div class="next">${f.next.who ? `<span class="who who-${esc(f.next.who)}">${esc(f.next.who)}</span>` : ''}${esc(f.next.text)}</div>` : ''}
     ${ap.length ? `<div class="approvals">${ap.map((a) => `<span class="chip" title="by ${esc(f.approvals[a].by)}">✓ ${esc(a)}</span>`).join('')}</div>` : ''}
   </button>`;
+}
+const stationModel = (station) => { const m = S.config.models || {}; const v = m[station] ?? m.default; return v && v !== 'inherit' ? v : ''; };
+const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms < 3600e3 ? `${Math.round(ms / 60e3)}m` : `${Math.round(ms / 3600e3)}h`);
+/** What is happening on a feature right now: a blocker, a working session, or one waiting for a reply. */
+function liveLine(f) {
+  if (f.blocked) return `<div class="live blocked"><i class="dot"></i><span class="wrap"><b>Blocked:</b> ${esc(f.blocked)}</span></div>`;
+  const ses = f.live?.sessions || [];
+  const on = ses.filter((x) => x.state === 'working');
+  if (f.live?.working) {
+    const s = on[0];
+    if (!s) return `<div class="live working"><i class="dot"></i><span><b>Working</b> · files changing</span></div>`;
+    const model = String(s.model || stationModel(f.status) || '').replace(/^claude-/, '');
+    const head = [`<b>Working${on.length > 1 ? ` ×${on.length}` : ''}</b>`, ago(s.age), model && esc(model)].filter(Boolean).join(' · ');
+    const doing = s.tool ? `${esc(s.tool)} <code>${esc(s.detail || '')}</code>` : 'thinking';
+    return `<div class="live working" title="${esc([s.tool, s.detail].filter(Boolean).join(': '))}"><i class="dot"></i><span><span class="line">${head}</span><span class="line">${doing}</span></span></div>`;
+  }
+  if (f.live?.waiting) return `<div class="live waiting"><i class="dot"></i><span><b>Waiting for your reply</b> in a Claude session</span></div>`;
+  return '';
 }
 function renderBoard() {
   if (!S.features.length) {
@@ -234,7 +267,7 @@ function renderBoard() {
   return `<div class="board">${COLUMNS.map(([key, label, owner]) => {
     const items = S.features.filter((f) => f.status === key);
     const model = (S.config.models || {})[key] ?? S.config.models?.default;
-    const modelTag = model && model !== 'inherit' ? ` · <span class="model" title="Model for this station (buildline models)">${esc(model)}</span>` : '';
+    const modelTag = key !== 'done' && model && model !== 'inherit' ? ` · <span class="model" title="Model for this station (buildline models)">${esc(model)}</span>` : '';
     return `<section class="col" aria-label="${label}"><h2><span>${label} <span class="owner">${owner}${modelTag}</span></span><small>${items.length}</small></h2>${items.map(card).join('') || '<div class="empty">—</div>'}</section>`;
   }).join('')}</div>`;
 }
@@ -327,7 +360,7 @@ async function refresh() {
   } catch (e) { toast('Dashboard lost connection: is `buildline ui` still running?'); }
 }
 refresh();
-setInterval(() => { if (!document.hidden && !editing && !ctxEditing) refresh(); }, 3000);
+setInterval(() => { if (!document.hidden && !editing && !ctxEditing) refresh(); }, 2000);
 </script>
 </body>
 </html>

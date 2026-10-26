@@ -12,6 +12,9 @@ Buildline installs alongside them and doesn't read or change their folders. It's
 **It's too much process for a typo.**
 Don't open a feature for trivial edits. For small bugs use `--type fix`: no spec, design or plan, just a reproduction test, the fix, gates and verification.
 
+**Can I run several Claude Code sessions at once?**
+Yes, in the same folder, one per feature. `npx buildline watch` and the dashboard show each one live: what it's doing, when it's waiting for your reply, and when it's blocked on a question. See [Live sessions](concepts.md#live-sessions). Each git worktree is its own checkout, so open `watch` inside the worktree you want to see.
+
 **How do I upgrade to a new release?**
 Run `npx buildline@latest update` in your project. It refreshes Buildline's files, keeps any you've edited, and leaves your config, context and features alone. Details in [Getting started → Upgrading](getting-started.md#upgrading).
 

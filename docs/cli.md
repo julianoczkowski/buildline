@@ -35,3 +35,16 @@ node .buildline/bin/gates.mjs            # all gates; exit 1 on failure
 node .buildline/bin/gates.mjs test lint  # named gates
 node .buildline/bin/gates.mjs --json     # machine-readable
 ```
+
+Agents record feature state with the feature script (you don't need to; run it with no arguments for the full usage):
+
+```bash
+node .buildline/bin/feature.mjs new "<title>" --type fix
+node .buildline/bin/feature.mjs move <id> <station> --note "…"     # refuses to skip a required approval
+node .buildline/bin/feature.mjs task <id> add "<title>" --covers A1 --verify "…"
+node .buildline/bin/feature.mjs task <id> T1 pass --note "what ran, what was seen"
+node .buildline/bin/feature.mjs block <id> "<question>"    /   unblock <id> --note "<answer>"
+node .buildline/bin/feature.mjs approve <id> spec --by "<name>"   # only on an explicit yes
+```
+
+`npx buildline move` follows the same approval rules; add `--force` to override.

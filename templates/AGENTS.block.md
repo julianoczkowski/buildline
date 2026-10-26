@@ -23,7 +23,7 @@ Each station has a playbook in `.buildline/stations/<station>.md`. Read the play
 
 ### Where things live
 
-- `.buildline/features/<id>-<slug>/feature.json` — state: status, approvals, tasks (each with `passes`), history
+- `.buildline/features/<id>-<slug>/feature.json` — state: status, approvals, tasks (each with `passes`), history. Change it only with `node .buildline/bin/feature.mjs` (run it with no arguments for usage), never by hand.
 - `.buildline/features/<id>-<slug>/spec.md` — the single source of truth for that change
 - `.buildline/features/<id>-<slug>/progress.md` — append-only work log so any session can resume
 - `.buildline/context/` — living product, architecture and design knowledge (update it when you ship)
@@ -45,4 +45,6 @@ A task only gets `"passes": true` after the gates pass **and** its own verificat
 5. **Respect the autonomy level** (`autonomy` in `buildline.json`): pause for human approval where the station playbook says to.
 6. **Small, reversible steps.** Prefer many small commits over one large one. Match the existing code style.
 7. **Ask, don't guess,** when the spec is ambiguous about user-facing behaviour.
-8. **Respect model routing.** `models` in `buildline.json` can send a station to another tool (e.g. `"review": "codex"`). If a station is routed to a different CLI than the one you are, hand it off with `npx buildline step <station> <id> --headless` and summarise the result instead of doing it yourself.
+8. **Record state with the feature script.** `node .buildline/bin/feature.mjs move|task|log|block|approve …` stamps real times, keeps the history the team watches live, and refuses moves that skip a required approval. Never edit `feature.json` by hand.
+9. **Mark it blocked before you ask.** When you need an answer from a person, run `node .buildline/bin/feature.mjs block <id> "<the question>"`, then ask. When they answer, run `node .buildline/bin/feature.mjs unblock <id>` and carry on.
+10. **Respect model routing.** `models` in `buildline.json` can send a station to another tool (e.g. `"review": "codex"`). If a station is routed to a different CLI than the one you are, hand it off with `npx buildline step <station> <id> --headless` and summarise the result instead of doing it yourself.

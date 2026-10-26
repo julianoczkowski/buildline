@@ -33,7 +33,7 @@ Stop and summarise instead of continuing if:
 - the change needs a secret, a paid service, a production system or a destructive action,
 - `metrics.reworks` reaches 5 (the spec or plan probably needs a human).
 
-Write the blocker to `progress.md` and set `feature.json → blocked` to a one-line reason.
+Write the blocker to `progress.md` and run `node .buildline/bin/feature.mjs block <id> "<one-line reason>"` so the board shows it waiting on a person.
 
 ## Running it with `/goal` (Claude Code)
 

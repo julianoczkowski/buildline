@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import pc from 'picocolors';
-import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, readSessions, liveState } from './features.js';
 import { AUTONOMY, VERSION } from './install.js';
 import { goalFor } from './cli.js';
 
@@ -35,9 +35,11 @@ function openBrowser(url) {
 
 function state(root) {
   const config = JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
+  const sessions = readSessions(root);
   const features = listFeatures(root).map(({ path: _p, ...f }) => ({
     ...f,
     next: nextAction({ ...f, path: _p }, config.autonomy),
+    live: liveState(f, sessions),
     goal: goalFor(f),
   }));
   const contextDir = path.join(root, '.buildline', 'context');

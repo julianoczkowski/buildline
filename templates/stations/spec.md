@@ -41,6 +41,7 @@ If `type` is `epic`, end by proposing 2–6 child features, each a thin, shippab
 
 ## 6. Approval and handoff
 
-- Set status to `design` (or `plan` if the change has no UX or architecture decisions; say why).
-- **Approval:** the spec needs human approval when autonomy ≤ 3. Ask: "Approve this spec?" Only when the person explicitly approves, record `approvals.spec = { "by": "<name or role>", "at": "<ISO date>" }`. Never record an approval on someone's behalf. They can also approve from `npx buildline ui` or with `npx buildline approve <id> spec`.
-- Append a `history` entry and suggest the next command.
+- **Approval:** the spec needs human approval when autonomy ≤ 3. Ask: "Approve this spec?" Only when the person explicitly approves, record it: `node .buildline/bin/feature.mjs approve <id> spec --by "<their name>"`. Never record an approval on someone's behalf. They can also approve in `npx buildline ui` or `npx buildline watch`. Until then the feature stays at `spec` and the board shows it waiting on them.
+- Once approved (or at L4), move on: `node .buildline/bin/feature.mjs move <id> design --note "<one line>"`, or `plan` if the change has no UX or architecture decisions (say why). The script refuses the move while a required approval is missing.
+- Record what happened: `node .buildline/bin/feature.mjs log <id> "spec drafted, waiting for approval"` (or what changed).
+- Suggest the next command.

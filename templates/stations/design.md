@@ -34,6 +34,6 @@ Follow the conventions in `architecture.md`. If you're breaking one, say so expl
 
 ## Handoff
 
-- Set status to `plan`. Append a `history` entry.
-- **Approval:** at autonomy L1, ask for explicit design approval and record `approvals.design` only when given. At other levels, the designer can approve UX in the dashboard; flag the feature as waiting for design approval if UX changed and nobody has approved it yet.
+- **Approval:** at autonomy L1, ask for explicit design approval and record it only when given: `node .buildline/bin/feature.mjs approve <id> design --by "<their name>"`.
+- Then `node .buildline/bin/feature.mjs move <id> plan --note "<one line>"`. At other levels, the designer can approve UX in the dashboard; flag the feature as waiting for design approval if UX changed and nobody has approved it yet.
 - Next: `/buildline-plan <id>`.

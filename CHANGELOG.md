@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- **Live sessions.** Claude Code hooks now note which session works on which feature and what it's doing. `watch` and the dashboard show it: *Working* (with the latest step, ×2 for two sessions), *Needs you* when a session waits for your reply, and the comet only runs while a session is really working.
+- **Blocked means blocked.** When an agent needs a decision it marks the feature blocked with its question, and the board shows the question.
+- **`.buildline/bin/feature.mjs`**: agents record tasks, moves, notes and blocks through it, with real timestamps. A hook stops hand edits to `feature.json`, which caused made-up times and missing history.
+- **Approvals are enforced.** A feature can't move past spec, design or plan without the approval its autonomy level requires, from agents or `buildline move` (use `--force` to override).
+- Fixes fill in their own brief and reproduction scenario instead of building against an empty spec.
+- Dashboard cards keep long session details on one line; the Done column no longer shows a model.
+
 ## 0.5.1 · 2026-10-25
 - Docs: how to upgrade an existing project to a new release (`npx buildline@latest update`), in the README, Getting started, FAQ and CLI reference.
 

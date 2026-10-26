@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import pc from 'picocolors';
-import { listFeatures, nextAction, approve } from './features.js';
+import { listFeatures, nextAction, approve, readSessions, readActivity, liveState } from './features.js';
 import { modelFor, describeModel } from './models.js';
 import { AUTONOMY, VERSION } from './install.js';
 
@@ -41,6 +41,7 @@ const C = {
   amberDim: fg('#8a6a1a'),
   green: fg('#4ec27f'),
   red: fg('#f7768e'),
+  cyan: fg('#59c2e6'),
   flash: pc.isColorSupported ? (s) => `\x1b[48;5;94m\x1b[38;5;230m${s}\x1b[39m\x1b[49m` : null,
 };
 const WHO = {
@@ -102,11 +103,17 @@ function box(screen, x, y, w, h, title, { accent = false } = {}) {
 function loadState(root, showShipped) {
   const config = JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
   const all = listFeatures(root);
-  const features = all.filter((f) => showShipped || f.status !== 'done').map((f) => ({ ...f, next: nextAction(f, config.autonomy) }));
+  const sessions = readSessions(root);
+  const features = all
+    .filter((f) => showShipped || f.status !== 'done')
+    .map((f) => ({ ...f, next: nextAction(f, config.autonomy), live: liveState(f, sessions) }));
+  // Station history plus the live tool feed from running sessions, in time order.
+  const tools = readActivity(root).map((a) => ({ at: a.at, id: a.feature, station: a.tool, note: a.detail, tool: true, key: `t|${a.at}|${a.session}|${a.detail}` }));
   const events = all
     .flatMap((f) => (f.history || []).map((h) => ({ ...h, id: f.id, key: `${f.id}|${h.at}|${h.note}` })))
+    .concat(tools)
     .sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  return { config, all, features, events };
+  return { config, all, features, events, sessions };
 }
 
 const stationIndex = (status) => (status === 'new' ? 0 : status === 'done' ? TRACK.length : TRACK.indexOf(status));
@@ -114,6 +121,21 @@ const shortModel = (config, station) => {
   const m = modelFor(config, station);
   return m.cli === 'claude' && !m.model ? 'session' : describeModel(m).replace(/^claude-/, '');
 };
+const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms < 3600e3 ? `${Math.round(ms / 60e3)}m` : `${Math.round(ms / 3600e3)}h`);
+
+/** The NEXT UP cell: who or what the feature is waiting on right now. */
+function rowStatus(f, t) {
+  if (f.blocked) return ['BLOCKED', C.red];
+  if (f.live.working) {
+    const n = f.live.sessions.filter((x) => x.state === 'working').length;
+    return [`${SPINNER[t % SPINNER.length]} ${n > 1 ? `×${n} ` : ''}WORKING`, C.amberBold];
+  }
+  if (f.live.waiting) return ['NEEDS YOU', t % 12 < 8 ? C.red : C.faint];
+  if (f.next.who === 'agent') return ['AGENT', C.amberDim];
+  const who = WHO[f.next.who];
+  return who ? [who.label, who.color] : ['', null];
+}
+
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 function timeLabel(iso) {
@@ -141,7 +163,9 @@ function drawTrack(line, x, f, seg, t) {
   const cur = stationIndex(f.status);
   const who = WHO[f.next.who];
   const skipped = (i) => f.type === 'fix' && i < 3 && cur >= 3;
-  const working = f.next.who === 'agent' && !f.blocked;
+  // The comet only runs while a session is actually working on this feature.
+  const working = f.live?.working && !f.blocked;
+  const idleAgent = f.next.who === 'agent' && !f.blocked && !f.live?.waiting;
   for (let i = 0; i < TRACK.length; i++) {
     const nx = x + i * seg;
     let node = ['○', C.faint];
@@ -149,6 +173,8 @@ function drawTrack(line, x, f, seg, t) {
     else if (i < cur) node = ['●', C.green];
     else if (i === cur && f.blocked) node = ['✖', t % 10 < 5 ? C.red : C.faint];
     else if (i === cur && working) node = [['◉', '◎', '◉', '●'][Math.floor(t / 3) % 4], C.amberBold];
+    else if (i === cur && f.live?.waiting) node = ['◉', t % 12 < 8 ? C.red : C.faint];
+    else if (i === cur && idleAgent) node = ['◉', C.amberDim];
     else if (i === cur) node = ['◉', t % 12 < 8 ? who?.color || C.amber : C.faint];
     line.put(nx, node[0], node[1]);
     if (i === TRACK.length - 1) break;
@@ -180,7 +206,8 @@ function render(st, ui, W, H) {
   const active = st.all.filter((f) => f.status !== 'done');
   const shipped = st.all.length - active.length;
   const tasks = active.flatMap((f) => f.tasks || []);
-  const waiting = active.filter((f) => ['pm', 'designer', 'eng', 'human'].includes(nextAction(f, config.autonomy).who)).length;
+  const waiting = features.filter((f) => f.status !== 'done' && !f.live.working && (f.live.waiting || ['pm', 'designer', 'eng', 'human'].includes(f.next.who))).length;
+  const sessionsWorking = st.sessions.filter((x) => x.state === 'working').length;
 
   // header
   const tall = W >= 96 && H >= 26;
@@ -196,6 +223,7 @@ function render(st, ui, W, H) {
     right(0, [[config.project || path.basename(ui.root), C.bold], ['  ·  ', C.faint], [AUTONOMY[config.autonomy]?.label || `L${config.autonomy}`, C.amber], ['  ·  ', C.faint], [live, C.green]]);
     right(1, [
       ['ACTIVE ', C.muted], [String(active.length), C.bold], ['   SHIPPED ', C.muted], [String(shipped), C.green],
+      ['   SESSIONS ', C.muted], [String(sessionsWorking), sessionsWorking ? C.amberBold : C.bold],
       ['   TASKS ', C.muted], [`${tasks.filter((x) => x.passes).length}/${tasks.length}`, C.bold],
       ['   WAITING ON PEOPLE ', C.muted], [String(waiting), waiting ? WHO.pm.color : C.bold],
     ]);
@@ -230,13 +258,13 @@ function render(st, ui, W, H) {
     if (seg >= 7) screen[top + 2].put(nx - Math.floor(m.length / 2), m, C.faint);
   });
   screen[top + 1].put(rx, 'FEATURE', C.muted);
-  screen[top + 1].put(W - 3 - 7, 'NEXT UP', C.muted);
+  screen[top + 1].put(W - 3 - 3, 'NOW', C.muted);
   const rowsAvail = lineH - 5;
   if (ui.sel < ui.scroll) ui.scroll = ui.sel;
   if (ui.sel >= ui.scroll + rowsAvail) ui.scroll = ui.sel - rowsAvail + 1;
   if (!features.length) {
     const line = screen[top + 4];
-    drawTrack(line, tx, { id: 'idle', status: 'spec', type: 'feature', next: { who: 'agent' } }, seg, t);
+    drawTrack(line, tx, { id: 'idle', status: 'spec', type: 'feature', next: { who: 'agent' }, live: { working: true, sessions: [] } }, seg, t);
     line.put(rx, 'the line is quiet · ', C.muted);
     line.put(rx + 20, 'npx buildline new "…"', C.amber);
   }
@@ -248,8 +276,8 @@ function render(st, ui, W, H) {
     line.put(2, selected ? '▸' : ' ', C.amberBold);
     line.put(4, f.id, flashing ? C.flash : selected ? C.amberBold : C.muted);
     drawTrack(line, tx, f, seg, t);
-    const who = WHO[f.next.who];
-    const whoW = 8;
+    const [label, labelColor] = rowStatus(f, t);
+    const whoW = 12;
     const ts = f.tasks || [];
     const roomy = W - 3 - whoW - rx >= 30;
     const barW = ts.length ? (roomy ? 11 : 5) : 0;
@@ -262,7 +290,7 @@ function render(st, ui, W, H) {
       if (roomy) bx = line.put(line.put(bx, '▰'.repeat(filled), C.green), '▱'.repeat(5 - filled), C.faint) + 1;
       line.put(bx, `${pass}/${ts.length}`, pass === ts.length ? C.green : C.muted);
     }
-    if (who) line.put(W - 3 - who.label.length, who.label, who.color);
+    if (label) line.put(W - 3 - [...label].length, label, labelColor);
   });
   if (features.length > rowsAvail) screen[top + lineH - 1].put(W - 16, ` ${ui.sel + 1}/${features.length} `, C.muted);
 
@@ -306,6 +334,24 @@ function drawInspector(screen, st, f, x, y, w, h) {
     return a ? [[`${s} ✔ ${a.by}  `, C.green]] : [[`${s} ·  `, C.faint]];
   });
   add(['approvals ', C.muted], ...appr.flat());
+  if (f.blocked) {
+    const width = Math.max(10, w - 15);
+    const words = String(f.blocked).split(/\s+/);
+    const lines = [''];
+    for (const word of words) (lines.at(-1) + ' ' + word).trim().length > width ? lines.push(word) : (lines[lines.length - 1] = (lines.at(-1) + ' ' + word).trim());
+    lines.slice(0, 4).forEach((l, i) => add([i ? '           ' : '✖ blocked  ', C.red], [l, C.bold]));
+  }
+  for (const ses of f.live?.sessions || []) {
+    const on = ses.state === 'working';
+    add(
+      [on ? '● ' : '◌ ', on ? C.amberBold : C.red],
+      [`session ${String(ses.id).slice(0, 8)} `, C.muted],
+      [`${(ses.model ? String(ses.model) : shortModel(config, f.status)).replace(/^claude-/, '')} `, C.text],
+      [on ? `${ses.tool || 'thinking'} ` : 'waiting for your reply ', on ? C.cyan : C.red],
+      [on ? `${ses.detail || ''} ` : '', C.text],
+      [`· ${ago(ses.age)} ago`, C.faint],
+    );
+  }
   const ts = f.tasks || [];
   if (ts.length) {
     add();
@@ -324,7 +370,8 @@ function drawInspector(screen, st, f, x, y, w, h) {
   }
   add();
   const who = WHO[f.next.who];
-  add(['next ', C.muted], [who ? who.label + ' ' : '', who?.color || C.text], [f.next.text, C.text]);
+  if (f.blocked) add(['next ', C.muted], ['answer the question in the session that asked it', C.text]);
+  else add(['next ', C.muted], [who ? who.label + ' ' : '', who?.color || C.text], [f.next.text, C.text]);
   if (f.next.cmd) add(['❯ ', C.amberBold], [f.next.cmd, C.amber]);
   const room = h - 2 - rows.length - 2;
   const journey = (f.history || []).slice(-room);
@@ -346,9 +393,9 @@ function drawEvents(screen, st, ui, x, y, w, h) {
     const line = screen[y + 1 + r];
     const fresh = (ui.freshEvents.get(e.key) || 0) > Date.now();
     let cx = line.put(x + 2, timeLabel(e.at), C.faint);
-    cx = line.put(cx + 1, e.id, fresh ? C.flash : C.amber);
-    cx = line.put(cx + 1, String(e.station || '').padEnd(7), C.muted);
-    line.put(cx + 1, e.note || '', fresh ? C.bold : C.text, x + w - 2);
+    cx = line.put(cx + 1, e.id || '···', fresh ? C.flash : C.amber);
+    cx = line.put(cx + 1, clip(e.station || '', 7).padEnd(7), e.tool ? C.cyan : C.muted);
+    line.put(cx + 1, e.note || '', e.tool ? C.muted : fresh ? C.bold : C.text, x + w - 2);
   });
   if (!rows.length) screen[y + 1].put(x + 2, 'nothing yet', C.faint);
 }

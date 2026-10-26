@@ -6,7 +6,7 @@ Every change, from a one-line fix to a new product area, is a **feature**: a fol
 
 | File | What | Who writes it |
 |---|---|---|
-| `feature.json` | status, type, owner, approvals, tasks, metrics, history | stations, CLI, dashboard |
+| `feature.json` | status, type, owner, approvals, tasks, metrics, history | agents through `.buildline/bin/feature.mjs`, the CLI, the dashboard |
 | `spec.md` | the single source of truth for the change | PM, designer, engineer, agents |
 | `progress.md` | append-only work log: what was done, verified, what's next | agents, every session |
 | `evidence/` | screenshots and logs from verification | verifier |
@@ -25,6 +25,31 @@ One file, not six. Aim for one screen; two screens means it's probably an epic.
 ```
 
 This follows the pattern Anthropic describes for long-running agents: a structured list where agents may only flip `passes`, plus a progress log, so any fresh session can resume from files and git rather than memory.
+
+### How agents record progress
+
+You never need to type these. The station playbooks tell the agent to run them, the same way it runs your tests:
+
+```bash
+node .buildline/bin/feature.mjs task 004 T2 pass --note "npm test -- carts: 12 passed"
+node .buildline/bin/feature.mjs move 004 verify
+node .buildline/bin/feature.mjs block 004 "Which currency should prices use?"
+```
+
+The script stamps the real time, keeps the history the board shows, counts reworks, and refuses a move that skips an approval your autonomy level requires. A Claude Code hook stops agents from editing `feature.json` by hand. When an agent needs a decision from you, it marks the feature **blocked** with the question before asking, so the board shows who is waiting on whom.
+
+## Live sessions
+
+Buildline's Claude Code hooks note which session is working on which feature and what it's doing right now, in `.buildline/sessions/` (git-ignored). `npx buildline watch` and the dashboard use them:
+
+| You see | Meaning |
+|---|---|
+| **Working** (moving comet in `watch`) | a session is on it now, with its latest step, e.g. `Edit index.html · 3s ago`; `×2` when two sessions share it |
+| **Needs you** | a session finished its turn and is waiting for your reply |
+| **Blocked** | an agent stopped with a question; it's shown on the card |
+| **Agent** (dim, no comet) | the next step is an agent's, but no session is running |
+
+Run as many sessions as you like in the same folder, one per feature; each shows on its own row. Agents that don't run Claude Code hooks show as working for two minutes after they last changed the feature's files.
 
 ## Type
 

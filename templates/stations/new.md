@@ -24,16 +24,14 @@ State the type and the reason in one line. The person can override.
 
 ## 3. Create the feature
 
-Preferred: run `npx buildline new "<title>" --type <type>`. It creates `.buildline/features/<id>-<slug>/` with `feature.json`, `spec.md` and `progress.md`.
+Run `node .buildline/bin/feature.mjs new "<title>" --type <type>` (add `--owner "<name>"` if the person told you who owns it). It creates `.buildline/features/<id>-<slug>/` with `feature.json`, `spec.md` and `progress.md`, and sets the starting status: `build` for a fix, `spec` otherwise.
 
-If the CLI isn't available, do it by hand: next id = highest existing id + 1, zero-padded to 3 digits; slug = kebab-case title (max 5 words); copy the files from `.buildline/templates/`.
-
-Then fill in `spec.md → ## Brief` (problem, who, outcome, open questions) and set `owner` in `feature.json` if the person told you who owns it.
+Then fill in `spec.md → ## Brief` (problem, who, outcome, open questions).
 
 ## 4. Route
 
-- `fix` → set status to `build`. In `spec.md`, also fill `## Acceptance` with a single scenario that reproduces the bug (it must fail before the fix). Next: `/buildline-build <id>`.
-- `feature` → status `spec`. Next: `/buildline-spec <id>`.
-- `epic` → status `spec`. Next: `/buildline-spec <id>`, which will end by proposing the split into child features.
+- `fix` → it starts at `build`. In `spec.md`, also fill `## Acceptance` with a single scenario that reproduces the bug (it must fail before the fix). Next: `/buildline-build <id>`.
+- `feature` → it starts at `spec`. Next: `/buildline-spec <id>`.
+- `epic` → it starts at `spec`. Next: `/buildline-spec <id>`, which will end by proposing the split into child features.
 
-Append a `history` entry to `feature.json`: `{ "at": "<ISO date>", "station": "new", "note": "<type and one-line reason>" }`.
+Record why: `node .buildline/bin/feature.mjs log <id> "<type and one-line reason>"`.

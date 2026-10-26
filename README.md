@@ -134,7 +134,8 @@ Start at 2. Raise it as your gates and acceptance scenarios earn trust. [More on
 
 <img alt="buildline watch: features on tracks through spec, design, plan, build, verify, review and ship, with an inspector and live event log" src="docs/assets/watch.png">
 
-- a **comet** on the track means an agent can work on it now; a **blinking dot** means it waits on a PM, designer or engineer
+- a **comet** on the track means a Claude Code session is working on it right now, with its latest step; **NEEDS YOU** and **BLOCKED** mean an agent is waiting on your answer
+- run several sessions at once, one per feature: each gets its own track
 - the model under each station is the one that runs it
 - `↑↓` to inspect tasks and history, `⏎` to open the station on its model, `a` to approve, `q` to quit
 

@@ -140,6 +140,7 @@ export function buildEntries(root, config) {
   for (const f of ['spec.md', 'progress.md']) add(`.buildline/templates/${f}`, read(`feature/${f}`));
   add('.buildline/bin/gates.mjs', read('bin/gates.mjs'), { executable: true });
   add('.buildline/bin/hook.mjs', read('bin/hook.mjs'), { executable: true });
+  add('.buildline/bin/feature.mjs', read('bin/feature.mjs'), { executable: true });
   add('.buildline/features/.gitkeep', '');
   if (config.ci) add('.github/workflows/buildline.yml', render(read('ci/buildline.yml'), vars));
   return entries;
@@ -151,7 +152,7 @@ const HOOK_MARK = '.buildline/bin/hook.mjs';
 const hookCmd = (mode) => `node "$CLAUDE_PROJECT_DIR/.buildline/bin/hook.mjs" ${mode}`;
 
 export function settingsAllow(config) {
-  const allow = ['Bash(node .buildline/bin/gates.mjs)', 'Bash(node .buildline/bin/gates.mjs *)', 'Bash(npx buildline *)'];
+  const allow = ['Bash(node .buildline/bin/gates.mjs)', 'Bash(node .buildline/bin/gates.mjs *)', 'Bash(node .buildline/bin/feature.mjs *)', 'Bash(npx buildline *)'];
   for (const g of config.gates) allow.push(`Bash(${g.command})`, `Bash(${g.command} *)`);
   return [...new Set(allow)];
 }
@@ -169,13 +170,20 @@ export function mergeSettings(root, config) {
   }
   const before = JSON.stringify(settings);
   settings.hooks ??= {};
+  // One Buildline hook per event; older installs get their entry upgraded in place.
   const ensureHook = (event, matcher, mode) => {
     const groups = (settings.hooks[event] ??= []);
-    const present = groups.some((g) => (g.hooks || []).some((h) => h.command?.includes(HOOK_MARK)));
-    if (!present) groups.push({ ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command: hookCmd(mode) }] });
+    const ours = groups.find((g) => (g.hooks || []).some((h) => h.command?.includes(HOOK_MARK)));
+    if (!ours) return groups.push({ ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command: hookCmd(mode) }] });
+    if (matcher) ours.matcher = matcher;
+    else delete ours.matcher;
+    for (const h of ours.hooks) if (h.command?.includes(HOOK_MARK)) h.command = hookCmd(mode);
   };
   ensureHook('SessionStart', null, 'session-start');
-  ensureHook('PreToolUse', 'Edit|Write|MultiEdit', 'guard');
+  ensureHook('PreToolUse', null, 'pre');
+  ensureHook('UserPromptSubmit', null, 'prompt');
+  ensureHook('Stop', null, 'stop');
+  ensureHook('SessionEnd', null, 'session-end');
 
   settings.permissions ??= {};
   settings.permissions.allow ??= [];

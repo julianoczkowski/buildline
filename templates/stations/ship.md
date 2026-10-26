@@ -27,6 +27,6 @@ Specs are written for one change; the context files carry what lasts. Update the
 
 ## 4. Close
 
-- Set status to `done`, fill `metrics.shippedAt`, append a `history` entry with the PR link.
+- `node .buildline/bin/feature.mjs move <id> done --note "<PR link>"` (this records the ship date).
 - Append a final `progress.md` entry.
 - Suggest the next feature in the queue (`/buildline`).

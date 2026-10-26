@@ -3,6 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { render, templatesDir } from './render.js';
+import { moveBlocker } from '../templates/bin/feature.mjs';
+
+export { moveBlocker };
 
 export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 'review', 'ship', 'done'];
 export const TYPES = ['fix', 'feature', 'epic'];
@@ -126,9 +129,12 @@ export function nextAction(feature, autonomy = 2) {
       if (/TODO/.test(readSpecSection(feature, 'Acceptance') || 'TODO')) return { who: 'pm', text: 'needs requirements & acceptance', cmd: `/buildline-spec ${feature.id}` };
       return autonomy <= 3 && !a.spec ? { who: 'pm', text: 'waiting on spec approval', cmd: `buildline approve ${feature.id} spec` } : { who: 'agent', text: 'ready for design', cmd: `/buildline-design ${feature.id}` };
     case 'design':
+      if (autonomy <= 1 && a.design) return { who: 'agent', text: 'ready for a plan', cmd: `/buildline-plan ${feature.id}` };
       return { who: 'designer', text: 'needs UX / technical design', cmd: `/buildline-design ${feature.id}` };
     case 'plan':
-      return { who: 'eng', text: 'needs a task plan', cmd: `/buildline-plan ${feature.id}` };
+      if (!tasks.length) return { who: 'eng', text: 'needs a task plan', cmd: `/buildline-plan ${feature.id}` };
+      if (feature.type !== 'fix' && autonomy <= 2 && !a.plan) return { who: 'eng', text: 'waiting on plan approval', cmd: `buildline approve ${feature.id} plan` };
+      return { who: 'agent', text: 'ready to build', cmd: `/buildline-build ${feature.id}` };
     case 'build':
       if (feature.type !== 'fix' && autonomy <= 3 && !a.spec) return { who: 'pm', text: 'waiting on spec approval', cmd: `buildline approve ${feature.id} spec` };
       if (feature.type !== 'fix' && autonomy <= 2 && !a.plan && tasks.length) return { who: 'eng', text: 'waiting on plan approval', cmd: `buildline approve ${feature.id} plan` };
@@ -154,4 +160,62 @@ export function readSpecSection(feature, heading) {
   } catch {
     return null;
   }
+}
+
+// ---- live sessions -------------------------------------------------------------
+// Claude Code hooks write one file per session to .buildline/sessions/ (see
+// templates/bin/hook.mjs). A session that hasn't been heard from in a while has
+// most likely crashed or been closed without a SessionEnd.
+
+const WORKING_FOR = 10 * 60e3;
+const WAITING_FOR = 2 * 3600e3;
+
+export function readSessions(root, at = Date.now()) {
+  const dir = path.join(root, '.buildline', 'sessions');
+  const out = [];
+  // `tracked` says hooks are reporting here, so "no session" really means nobody is working.
+  out.tracked = fs.existsSync(dir);
+  if (!out.tracked) return out;
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.endsWith('.json')) continue;
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
+      const age = at - new Date(s.lastAt);
+      if (s.state === 'working' && age < WORKING_FOR) out.push({ ...s, age });
+      else if (s.state === 'waiting' && age < WAITING_FOR) out.push({ ...s, age });
+    } catch {}
+  }
+  return Object.assign(out.sort((a, b) => a.age - b.age), { tracked: true });
+}
+
+/** Recent tool calls from live sessions, oldest first. */
+export function readActivity(root, limit = 200) {
+  try {
+    const text = fs.readFileSync(path.join(root, '.buildline', 'sessions', 'activity.jsonl'), 'utf8');
+    return text.split('\n').filter(Boolean).slice(-limit).flatMap((l) => {
+      try {
+        return [JSON.parse(l)];
+      } catch {
+        return [];
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * What's happening on a feature right now: live sessions on it, whether one is
+ * working or waiting for a reply. Where no hooks report (agents other than
+ * Claude Code), a feature whose files changed in the last two minutes counts as worked on.
+ */
+export function liveState(feature, sessions, at = Date.now()) {
+  const mine = sessions.filter((s) => s.feature === feature.id);
+  const working = mine.filter((s) => s.state === 'working');
+  const recent = at - new Date(feature.updated || 0) < 2 * 60e3;
+  return {
+    sessions: mine,
+    working: working.length > 0 || (!sessions.tracked && recent && !feature.blocked && feature.status !== 'done'),
+    waiting: !working.length && mine.some((s) => s.state === 'waiting'),
+  };
 }

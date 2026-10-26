@@ -40,5 +40,5 @@ Save screenshots and logs to `.buildline/features/<id>-<slug>/evidence/`.
 
 ## 4. Route
 
-- All pass → status `review`, history entry, next `/buildline-review <id>`.
-- Any fail → status back to `build`. For each failure, add a new task to `feature.json` (`"title": "Fix A3: empty state copy"`, `"covers": ["A3"]`, `"passes": false`) and increment `metrics.reworks` in `feature.json`. Next: `/buildline-build <id>`.
+- All pass → `node .buildline/bin/feature.mjs move <id> review --note "A1–A<n> pass"`. Next: `/buildline-review <id>`.
+- Any fail → for each failure, `node .buildline/bin/feature.mjs task <id> add "Fix A3: empty state copy" --covers A3`, then `node .buildline/bin/feature.mjs move <id> build --note "<n> scenarios fail"` (this counts a rework). Next: `/buildline-build <id>`.

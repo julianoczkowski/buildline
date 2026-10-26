@@ -136,7 +136,10 @@ test('guard hook locks acceptance only during build/verify/review', () => {
   const f = createFeature(root, { title: 'Guarded', type: 'fix' }); // status: build
   const spec = path.join(f.path, 'spec.md');
   const run = (input) => spawnSync(process.execPath, [path.join(root, '.buildline/bin/hook.mjs'), 'guard'], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
-  const editAcceptance = { tool_name: 'Edit', tool_input: { file_path: spec, old_string: '**Given** TODO', new_string: '**Given** weaker' } };
+  // An unfilled (TODO) acceptance may be written during build: fixes start there.
+  assert.equal(run({ tool_name: 'Edit', tool_input: { file_path: spec, old_string: '**Given** TODO', new_string: '**Given** a page' } }).status, 0);
+  fs.writeFileSync(spec, fs.readFileSync(spec, 'utf8').replace(/(## Acceptance\s*\n)[\s\S]*?(?=\n## )/, '$1- A1 **Given** a page **When** loaded **Then** it shows 2026\n'));
+  const editAcceptance = { tool_name: 'Edit', tool_input: { file_path: spec, old_string: 'shows 2026', new_string: 'shows anything' } };
   assert.equal(run(editAcceptance).status, 2);
   assert.equal(run({ tool_name: 'Edit', tool_input: { file_path: spec, old_string: '- R1 TODO', new_string: '- R1 ok' } }).status, 0);
   setStatus(findFeature(root, f.id), 'spec');
@@ -222,4 +225,81 @@ test('watch: one frame shows every feature on its track, models and events', () 
   assert.match(out, /fable .* opus-5-5/);
   assert.match(out, /spec approved by Maya/);
   assert.match(out, /❯ \/buildline-build 001/);
+});
+
+const script = (root, ...args) => spawnSync(process.execPath, [path.join(root, '.buildline/bin/feature.mjs'), ...args], { encoding: 'utf8' });
+const hook = (root, mode, input) =>
+  spawnSync(process.execPath, [path.join(root, '.buildline/bin/hook.mjs'), mode], { encoding: 'utf8', input: JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: root } });
+const featureJson = (root, id) => JSON.parse(read(root, fs.readdirSync(path.join(root, '.buildline/features')).filter((d) => d.startsWith(id)).map((d) => `.buildline/features/${d}/feature.json`)[0]));
+
+test('feature script: tasks, log, block and real timestamps', () => {
+  const root = tmp();
+  install(root);
+  assert.equal(script(root, 'new', 'Footer year', '--type', 'fix').status, 0);
+  const before = Date.now();
+  assert.match(script(root, 'task', '1', 'add', 'Reproduce, then fix', '--covers', 'A1').stdout, /T1 added/);
+  script(root, 'task', '1', 'add', 'Gates pass');
+  assert.equal(script(root, 'task', '1', 'T1', 'pass', '--note', 'ran the page').status, 0);
+  assert.equal(script(root, 'task', '1', 'T9', 'pass').status, 1);
+  script(root, 'block', '1', 'Which currency?');
+  let f = featureJson(root, '001');
+  assert.deepEqual(f.tasks.map((t) => [t.id, t.passes]), [['T1', true], ['T2', false]]);
+  assert.deepEqual(f.tasks[0].covers, ['A1']);
+  assert.equal(f.blocked, 'Which currency?');
+  for (const h of f.history.slice(1)) assert.ok(Math.abs(new Date(h.at) - before) < 60e3, `real time, not ${h.at}`);
+  script(root, 'unblock', '1', '--note', 'GBP');
+  script(root, 'move', '1', 'verify');
+  script(root, 'move', '1', 'build');
+  f = featureJson(root, '001');
+  assert.equal(f.blocked, null);
+  assert.equal(f.metrics.reworks, 1);
+});
+
+test('approvals: a feature cannot skip a required approval, from the script or the CLI', () => {
+  const root = tmp();
+  install(root, { autonomy: 2 });
+  script(root, 'new', 'Opening hours');
+  const refused = script(root, 'move', '1', 'design');
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /needs spec approval .* approve 001 spec --by/);
+  assert.equal(featureJson(root, '001').status, 'spec');
+  const cli = spawnSync(process.execPath, [bin, 'move', '1', 'build', '-C', root], { encoding: 'utf8' });
+  assert.equal(cli.status, 1);
+  assert.match(cli.stderr, /npx buildline approve 001 spec/);
+  assert.equal(script(root, 'approve', '1', 'spec').status, 1); // must say who
+  script(root, 'approve', '1', 'spec', '--by', 'Maya');
+  assert.equal(script(root, 'move', '1', 'design').status, 0);
+  assert.equal(script(root, 'move', '1', 'build').status, 1); // plan approval at L2
+  assert.equal(script(root, 'move', '1', 'spec').status, 0); // going back is always fine
+});
+
+test('hooks: heartbeat tracks sessions per feature, guard blocks hand edits to feature.json', () => {
+  const root = tmp();
+  install(root);
+  script(root, 'new', 'Nav focus', '--type', 'fix');
+  const settings = JSON.parse(read(root, '.claude/settings.json'));
+  for (const e of ['SessionStart', 'PreToolUse', 'UserPromptSubmit', 'Stop', 'SessionEnd']) assert.ok(settings.hooks[e], e);
+  assert.equal(settings.hooks.PreToolUse.length, 1);
+  hook(root, 'prompt', { session_id: 'abc', prompt: '/buildline-build 1' });
+  hook(root, 'pre', { session_id: 'abc', tool_name: 'Edit', tool_input: { file_path: path.join(root, 'style.css'), old_string: 'a', new_string: 'b' } });
+  let s = JSON.parse(read(root, '.buildline/sessions/abc.json'));
+  assert.deepEqual([s.feature, s.station, s.state, s.tool, s.detail], ['001', 'build', 'working', 'Edit', 'style.css']);
+  assert.match(read(root, '.buildline/sessions/.gitignore'), /\*/);
+  hook(root, 'pre', { session_id: 'abc', tool_name: 'Read', tool_input: { file_path: path.join(root, '.buildline/features/002-other/spec.md') } });
+  assert.equal(JSON.parse(read(root, '.buildline/sessions/abc.json')).feature, '001'); // reading another feature doesn't move the session
+  const featureFile = path.join(root, '.buildline/features', fs.readdirSync(path.join(root, '.buildline/features')).find((d) => d.startsWith('001')), 'feature.json');
+  const denied = hook(root, 'pre', { session_id: 'abc', tool_name: 'Write', tool_input: { file_path: featureFile, content: '{}' } });
+  assert.equal(denied.status, 2);
+  assert.match(denied.stderr, /feature\.mjs/);
+  assert.equal(hook(root, 'pre', { session_id: 'abc', tool_name: 'Bash', tool_input: { command: `echo '{}' > ${featureFile}` } }).status, 2);
+  assert.equal(hook(root, 'pre', { session_id: 'abc', tool_name: 'Bash', tool_input: { command: 'node .buildline/bin/feature.mjs task 1 T1 pass' } }).status, 0);
+  hook(root, 'stop', { session_id: 'abc' });
+  s = JSON.parse(read(root, '.buildline/sessions/abc.json'));
+  assert.equal(s.state, 'waiting');
+  const out = spawnSync(process.execPath, [bin, 'watch', '-C', root], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } }).stdout;
+  assert.match(out, /NEEDS YOU/);
+  hook(root, 'prompt', { session_id: 'abc', prompt: 'yes, GBP' });
+  assert.match(spawnSync(process.execPath, [bin, 'watch', '-C', root], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } }).stdout, /WORKING/);
+  hook(root, 'session-end', { session_id: 'abc' });
+  assert.ok(!fs.existsSync(path.join(root, '.buildline/sessions/abc.json')));
 });

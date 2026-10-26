@@ -34,4 +34,4 @@ Write `## Review` in `spec.md`: a summary of what changed and why, risk areas to
 
 ## 5. Route
 
-When there are no open blockers or should-fix findings: status `ship`, history entry, next `/buildline-ship <id>`. A human still approves the merge at every autonomy level.
+Blockers and should-fix findings become tasks (`node .buildline/bin/feature.mjs task <id> add "…"`) and the feature goes back with `node .buildline/bin/feature.mjs move <id> build --note "<n> findings"`. When there are none: `node .buildline/bin/feature.mjs move <id> ship --note "review clean"`, next `/buildline-ship <id>`. A human still approves the merge at every autonomy level.

@@ -7,7 +7,7 @@ import { detect, describeStack } from './detect.js';
 import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRemove, defaultGates } from './install.js';
 import { loadManifest } from './files.js';
 import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, describeModel, discoverModelOptions, checkModel, stationPrompt, launchArgs, externalClis } from './models.js';
-import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, STATIONS, TYPES } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, STATIONS, TYPES } from './features.js';
 
 const LOGO = [
   pc.yellow('  ┌┐ ┬ ┬┬┬  ┌┬┐┬  ┬┌┐┌┌─┐'),
@@ -310,6 +310,8 @@ export function moveFeature(root, ref, station, opts) {
   const f = findFeature(root, ref);
   if (!f) throw new Error(`No feature matching "${ref}".`);
   if (!STATIONS.includes(station)) throw new Error(`Station must be one of: ${STATIONS.join(', ')}`);
+  const blocker = opts.force ? null : moveBlocker(f, station, loadConfig(root).autonomy ?? 2);
+  if (blocker) throw new Error(blocker.replace(/node \.buildline\/bin\/feature\.mjs approve/, 'npx buildline approve') + ' Or pass --force.');
   setStatus(f, station, opts.note);
   console.log(`${pc.green('✔')} ${f.id} → ${station}`);
 }
