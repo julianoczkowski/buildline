@@ -214,7 +214,8 @@ export function readActivity(root, limit = 200) {
  * Claude Code), a feature whose files changed in the last two minutes counts as worked on.
  */
 export function liveState(feature, sessions, at = Date.now()) {
-  const mine = sessions.filter((s) => s.feature === feature.id);
+  // A finished feature has nothing live, even if an old session is still tied to it.
+  const mine = feature.status === 'done' ? [] : sessions.filter((s) => s.feature === feature.id);
   const working = mine.filter((s) => s.state === 'working');
   const recent = at - new Date(feature.updated || 0) < 2 * 60e3;
   const waiting = mine.find((s) => s.state === 'waiting');

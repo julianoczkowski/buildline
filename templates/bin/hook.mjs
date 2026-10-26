@@ -113,6 +113,17 @@ function promptDetail(prompt) {
   return done ? oneLine(done[1], 90) : oneLine(prompt, 60);
 }
 
+/** A feature.mjs command that changes a feature's state, e.g. "feature.mjs task 3 T1 pass". */
+function actedOn(command) {
+  const m = /feature\.mjs\s+(?:move|task|log|block|unblock|approve)\s+(\d{1,4})\b/.exec(String(command || ''));
+  return m ? m[1].padStart(3, '0') : null;
+}
+
+function isDone(id) {
+  const dir = fs.existsSync(featuresDir) ? fs.readdirSync(featuresDir).find((d) => d.startsWith(`${id}-`)) : null;
+  return dir ? readJson(path.join(featuresDir, dir, 'feature.json'))?.status === 'done' : false;
+}
+
 function detail(input) {
   const ti = input.tool_input || {};
   if (ti.file_path) return path.basename(ti.file_path);
@@ -189,12 +200,15 @@ function heartbeat(input, event) {
   const prompt = input.prompt || '';
   const station = /\/buildline-([a-z]+)/.exec(prompt)?.[1];
   const ti = input.tool_input || {};
-  // A session stays on the feature it was started for; reading another feature's files doesn't move it.
-  const feature = featureRef(prompt) || prev.feature || featureRef(ti.file_path) || featureRef(ti.command) || featureRef(ti.prompt) || null;
+  // A session stays on the feature it was started for; reading another feature's files doesn't move it,
+  // recording progress on one does. It lets go once its feature is done or the conversation is cleared,
+  // so a reopened session doesn't keep flagging a finished feature.
+  const bound = prev.feature && !isDone(prev.feature) && !(event === 'start' && input.source === 'clear') ? prev.feature : null;
+  const feature = featureRef(prompt) || actedOn(ti.command) || bound || featureRef(ti.file_path) || featureRef(ti.command) || featureRef(ti.prompt) || null;
   const next = {
     ...prev,
     feature,
-    station: station || prev.station || null,
+    station: station || (feature === prev.feature ? prev.station : null) || null,
     model: input.model?.id || input.model || prev.model || null,
     ...nextState(prev, input, event),
     lastAt: at,

@@ -389,3 +389,34 @@ test('hooks: background work, questions and permission prompts are told apart fr
   hook(root, 'stop', { session_id: 's1', last_assistant_message: 'PR opened.', background_tasks: [], session_crons: [] });
   assert.deepEqual(waits(), { why: 'reply', said: 'PR opened.' });
 });
+
+test('hooks: a session lets go of its feature once it is done, so a reopened session never flags it', () => {
+  const root = tmp();
+  install(root);
+  script(root, 'new', 'Nav focus', '--type', 'fix');
+  script(root, 'new', 'Price label', '--type', 'fix');
+  const session = () => JSON.parse(read(root, '.buildline/sessions/s1.json'));
+  const live = (id) => liveState(findFeature(root, id), readSessions(root));
+  hook(root, 'prompt', { session_id: 's1', prompt: '/buildline-build 1' });
+  hook(root, 'pre', { session_id: 's1', tool_name: 'Bash', tool_input: { command: 'node .buildline/bin/feature.mjs move 1 done --force' } });
+  script(root, 'move', '1', 'done', '--force');
+  hook(root, 'stop', { session_id: 's1', last_assistant_message: 'Shipped.' });
+  assert.equal(session().feature, null);
+  // An old session file still tied to a done feature (from before this fix) shows nothing either.
+  fs.writeFileSync(path.join(root, '.buildline/sessions/old.json'), JSON.stringify({ id: 'old', feature: '001', state: 'waiting', lastAt: new Date().toISOString() }));
+  assert.equal(live('1').waiting, false);
+  // The same session, reopened days later for something else: nothing is flagged.
+  hook(root, 'session-start', { session_id: 's1', source: 'resume' });
+  hook(root, 'prompt', { session_id: 's1', prompt: 'why is the dashboard showing needs you?' });
+  hook(root, 'stop', { session_id: 's1', last_assistant_message: 'Because of the session id.' });
+  assert.deepEqual([live('1').waiting, live('2').waiting], [false, false]);
+  // Recording progress on another feature moves the session there; reading one doesn't.
+  hook(root, 'pre', { session_id: 's1', tool_name: 'Read', tool_input: { file_path: path.join(root, '.buildline/features/002-price-label/spec.md') } });
+  hook(root, 'pre', { session_id: 's1', tool_name: 'Bash', tool_input: { command: 'node .buildline/bin/feature.mjs task 2 add "Reproduce"' } });
+  assert.equal(session().feature, '002');
+  hook(root, 'pre', { session_id: 's1', tool_name: 'Bash', tool_input: { command: 'node .buildline/bin/feature.mjs show 1' } });
+  assert.equal(session().feature, '002');
+  // /clear starts a fresh conversation: the session is free again.
+  hook(root, 'session-start', { session_id: 's1', source: 'clear' });
+  assert.equal(session().feature, null);
+});

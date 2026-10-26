@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- A Claude Code session lets go of its feature once that feature is done, or after `/clear`, so reopening an old session no longer marks a finished feature as *Needs you*. Done features never show live sessions.
+- Recording progress on another feature (`feature.mjs task 2 …`) moves the session to that feature; reading one still doesn't.
+
 ## 0.8.0 · 2026-10-26
 - **Waiting on you, or on something else?** A session that ends its turn while a CI watch, a background shell or a background agent is still running now shows as *Background* (a turning clock in `watch`), not *Needs you*. It needs you again only when that work is done, or if the agent asked a question.
 - *Needs you* also covers questions and permission prompts in the middle of a turn, and the card shows what the agent said or asked.
