@@ -1,6 +1,7 @@
 // `buildline watch`: a live, full-screen view of the line in the terminal.
 // Every feature is a track running through the stations; the dot shows where it
-// is, a moving comet means an agent can work on it, a blinking dot means it waits
+// is, a moving comet means a session is working on it, a turning clock means work
+// runs in the background (CI, a background agent), a blinking dot means it waits
 // on a person. Zero dependencies beyond picocolors: raw ANSI on a cell canvas.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -16,6 +17,8 @@ const TRACK = ['spec', 'design', 'plan', 'build', 'verify', 'review', 'ship'];
 const LOGO = ['┌┐ ┬ ┬┬┬  ┌┬┐┬  ┬┌┐┌┌─┐', '├┴┐│ │││   ││││  ││││├┤ ', '└─┘└─┘┴┴─┘─┴┘┴─┘┴┘└┘└─┘'];
 const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 const SPARK = ' ▁▂▃▄▅▆▇█';
+const CLOCK = '◴◷◶◵';
+const WAITS = { reply: 'waiting for your reply', question: 'asking you a question', permission: 'waiting for your permission' };
 
 // ---- colour ------------------------------------------------------------------
 
@@ -123,16 +126,17 @@ const shortModel = (config, station) => {
   const m = modelFor(config, station);
   return m.cli === 'claude' && !m.model ? 'session' : describeModel(m).replace(/^claude-/, '');
 };
-const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms < 3600e3 ? `${Math.round(ms / 60e3)}m` : `${Math.round(ms / 3600e3)}h`);
+const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : `${Math.floor(ms / 3600e3)}h${Math.floor(ms / 60e3) % 60 ? `${Math.floor(ms / 60e3) % 60}m` : ''}`);
 
 /** The NEXT UP cell: who or what the feature is waiting on right now. */
 function rowStatus(f, t) {
   if (f.blocked) return ['BLOCKED', C.red];
+  if (f.live.waiting) return ['NEEDS YOU', t % 12 < 8 ? C.red : C.faint];
   if (f.live.working) {
     const n = f.live.sessions.filter((x) => x.state === 'working').length;
     return [`${SPINNER[t % SPINNER.length]} ${n > 1 ? `×${n} ` : ''}WORKING`, C.amberBold];
   }
-  if (f.live.waiting) return ['NEEDS YOU', t % 12 < 8 ? C.red : C.faint];
+  if (f.live.background.length) return [`${CLOCK[Math.floor(t / 4) % CLOCK.length]} BACKGROUND`, C.cyan];
   if (f.next.who === 'agent') return ['AGENT', C.amberDim];
   const who = WHO[f.next.who];
   return who ? [who.label, who.color] : ['', null];
@@ -166,7 +170,8 @@ function drawTrack(line, x, f, seg, t) {
   const who = WHO[f.next.who];
   const skipped = (i) => f.type === 'fix' && i < 3 && cur >= 3;
   // The comet only runs while a session is actually working on this feature.
-  const working = f.live?.working && !f.blocked;
+  const working = f.live?.working && !f.blocked && !f.live.waiting;
+  const background = f.live?.background?.length && !f.blocked && !f.live.waiting;
   const idleAgent = f.next.who === 'agent' && !f.blocked && !f.live?.waiting;
   for (let i = 0; i < TRACK.length; i++) {
     const nx = x + i * seg;
@@ -176,6 +181,7 @@ function drawTrack(line, x, f, seg, t) {
     else if (i === cur && f.blocked) node = ['✖', t % 10 < 5 ? C.red : C.faint];
     else if (i === cur && working) node = [['◉', '◎', '◉', '●'][Math.floor(t / 3) % 4], C.amberBold];
     else if (i === cur && f.live?.waiting) node = ['◉', t % 12 < 8 ? C.red : C.faint];
+    else if (i === cur && background) node = [CLOCK[Math.floor(t / 4) % CLOCK.length], C.cyan];
     else if (i === cur && idleAgent) node = ['◉', C.amberDim];
     else if (i === cur) node = ['◉', t % 12 < 8 ? who?.color || C.amber : C.faint];
     line.put(nx, node[0], node[1]);
@@ -208,8 +214,9 @@ function render(st, ui, W, H) {
   const active = st.all.filter((f) => f.status !== 'done');
   const shipped = st.all.length - active.length;
   const tasks = active.flatMap((f) => f.tasks || []);
-  const waiting = features.filter((f) => f.status !== 'done' && !f.live.working && (f.live.waiting || ['pm', 'designer', 'eng', 'human'].includes(f.next.who))).length;
-  const sessionsWorking = st.sessions.filter((x) => x.state === 'working').length;
+  const busy = (f) => f.live.working || f.live.background.length;
+  const waiting = features.filter((f) => f.status !== 'done' && (f.live.waiting || (!busy(f) && ['pm', 'designer', 'eng', 'human'].includes(f.next.who)))).length;
+  const sessionsWorking = st.sessions.filter((x) => x.state !== 'waiting').length;
 
   // header
   const tall = W >= 96 && H >= 26;
@@ -300,13 +307,13 @@ function render(st, ui, W, H) {
   const by = top + lineH;
   const bh = H - 1 - by;
   if (bh >= 5) {
-    const split = W >= 100 ? Math.floor(W * 0.52) : W;
+    const split = W >= 100 && ui.events !== false ? Math.floor(W * 0.52) : W;
     drawInspector(screen, st, sel, 0, by, split, bh);
     if (split < W) drawEvents(screen, st, ui, split, by, W - split, bh);
   }
 
   // footer
-  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
+  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped'], ['e', ui.events === false ? 'events' : 'hide events'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
   let fx = 1;
   const foot = screen[H - 1];
   if (ui.message && ui.messageUntil > Date.now()) fx = foot.put(1, ` ${ui.message} `, C.flash);
@@ -344,15 +351,23 @@ function drawInspector(screen, st, f, x, y, w, h) {
     lines.slice(0, 4).forEach((l, i) => add([i ? '           ' : '✖ blocked  ', C.red], [l, C.bold]));
   }
   for (const ses of f.live?.sessions || []) {
-    const on = ses.state === 'working';
-    add(
-      [on ? '● ' : '◌ ', on ? C.amberBold : C.red],
-      [`session ${String(ses.id).slice(0, 8)} `, C.muted],
-      [`${(ses.model ? String(ses.model) : shortModel(config, f.status)).replace(/^claude-/, '')} `, C.text],
-      [on ? `${ses.tool || 'thinking'} ` : 'waiting for your reply ', on ? C.cyan : C.red],
-      [on ? `${ses.detail || ''} ` : '', C.text],
-      [`· ${ago(ses.age)} ago`, C.faint],
-    );
+    // "● c41c8a97 opus-5-5  working 4m · up 1h12m", then what it's doing or waiting for.
+    const model = (ses.model ? String(ses.model) : shortModel(config, f.status)).replace(/^claude-/, '');
+    const up = ses.total - (ses.for ?? 0) > 60e3 ? [` · up ${ago(ses.total)}`, C.faint] : ['', null];
+    const head = (icon, iconColor, label, color) => add([icon + ' ', iconColor], [`${String(ses.id).slice(0, 8)} `, C.muted], [`${model}  `, C.text], [`${label} ${ago(ses.for ?? ses.age)}`, color], up);
+    const sub = (text, color) => text && add(['    ', null], [text, color]);
+    if (ses.state === 'working') {
+      head('●', C.amberBold, 'working', C.amberBold);
+      sub(`${ses.tool || 'thinking'} ${ses.detail || ''}`, C.cyan);
+    } else if (ses.state === 'background') {
+      head(CLOCK[Math.floor(Date.now() / 440) % CLOCK.length], C.cyan, 'background', C.cyan);
+      for (const job of (ses.background || []).slice(0, 3)) sub(job, C.text);
+      sub(ses.said, C.muted);
+    } else {
+      head('◌', C.red, 'needs you', C.red);
+      sub(WAITS[ses.waitingFor] || WAITS.reply, C.red);
+      sub(ses.said, C.bold);
+    }
   }
   const ts = f.tasks || [];
   if (ts.length) {
@@ -502,6 +517,7 @@ export async function watch(root, opts = {}) {
       if (k === '\x1b[A' || k === 'k') ui.sel = Math.max(0, ui.sel - 1);
       else if (k === '\x1b[B' || k === 'j') ui.sel = Math.min(st.features.length - 1, ui.sel + 1);
       else if (k === 's') (ui.shipped = !ui.shipped), refresh();
+      else if (k === 'e') (ui.events = ui.events === false), out.write('\x1b[2J');
       else if (k === 'm') (ui.sound = !ui.sound), say(ui.sound ? '♪ sound on' : 'sound muted until you quit');
       else if (k === 'u') return done({ action: 'ui' });
       else if ((k === '\r' || k === '\n') && f) {

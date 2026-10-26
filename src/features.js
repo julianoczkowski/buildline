@@ -181,8 +181,11 @@ export function readSessions(root, at = Date.now()) {
     try {
       const s = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
       const age = at - new Date(s.lastAt);
-      if (s.state === 'working' && age < WORKING_FOR) out.push({ ...s, age });
-      else if (s.state === 'waiting' && age < WAITING_FOR) out.push({ ...s, age });
+      // How long it has been in this state, and since the session started.
+      const timing = { for: at - new Date(s.since || s.lastAt), total: at - new Date(s.startedAt || s.lastAt) };
+      // A long command (tests, a deploy watch) keeps a session working with no new events.
+      if (s.state === 'working' && age < (s.inTool ? WAITING_FOR : WORKING_FOR)) out.push({ ...s, age, ...timing });
+      else if ((s.state === 'waiting' || s.state === 'background') && age < WAITING_FOR) out.push({ ...s, age, ...timing });
     } catch {}
   }
   return Object.assign(out.sort((a, b) => a.age - b.age), { tracked: true });
@@ -205,18 +208,24 @@ export function readActivity(root, limit = 200) {
 }
 
 /**
- * What's happening on a feature right now: live sessions on it, whether one is
- * working or waiting for a reply. Where no hooks report (agents other than
+ * What's happening on a feature right now: live sessions on it, and whether one
+ * waits on a person (that wins), one is working, or one finished its turn with
+ * work still running in the background (a CI watch, a background agent). Where no hooks report (agents other than
  * Claude Code), a feature whose files changed in the last two minutes counts as worked on.
  */
 export function liveState(feature, sessions, at = Date.now()) {
   const mine = sessions.filter((s) => s.feature === feature.id);
   const working = mine.filter((s) => s.state === 'working');
   const recent = at - new Date(feature.updated || 0) < 2 * 60e3;
+  const waiting = mine.find((s) => s.state === 'waiting');
   return {
     sessions: mine,
     working: working.length > 0 || (!sessions.tracked && recent && !feature.blocked && feature.status !== 'done'),
-    waiting: !working.length && mine.some((s) => s.state === 'waiting'),
+    waiting: Boolean(waiting),
+    // why: 'reply' | 'question' | 'permission', and what the agent said or asked
+    waitingFor: waiting ? { why: waiting.waitingFor || 'reply', said: waiting.said || null, for: waiting.for } : null,
+    background: !working.length && !waiting ? mine.filter((s) => s.state === 'background').flatMap((s) => s.background || []) : [],
+    backgroundFor: Math.max(0, ...mine.filter((s) => s.state === 'background').map((s) => s.for || 0)),
   };
 }
 

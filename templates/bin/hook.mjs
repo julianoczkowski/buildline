@@ -6,10 +6,11 @@
 //   guard          blocks edits to a spec's "## Acceptance" section while the
 //                  feature is in build/verify/review, so agents can't move the goalposts,
 //                  and hand edits to feature.json (agents use .buildline/bin/feature.mjs)
-//   prompt / stop / session-end
-//                  heartbeat: which session works on which feature, so
-//                  `buildline watch` and the dashboard can show live work.
-//                  Written to .buildline/sessions/ (git-ignored).
+//   prompt / post / notify / stop / session-end
+//                  heartbeat: which session works on which feature and whether
+//                  it is working, running something in the background, or
+//                  waiting for a person, so `buildline watch` and the dashboard
+//                  can show live work. Written to .buildline/sessions/ (git-ignored).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,6 +107,12 @@ function featureRef(text) {
   return m ? m[1].padStart(3, '0') : null;
 }
 
+/** A prompt in a line. Background tasks finishing arrive as <task-notification> prompts: show their summary. */
+function promptDetail(prompt) {
+  const done = /^\s*<task-notification>[\s\S]*?<summary>([\s\S]*?)<\/summary>/.exec(prompt);
+  return done ? oneLine(done[1], 90) : oneLine(prompt, 60);
+}
+
 function detail(input) {
   const ti = input.tool_input || {};
   if (ti.file_path) return path.basename(ti.file_path);
@@ -117,6 +124,56 @@ function detail(input) {
   if (ti.pattern) return String(ti.pattern).slice(0, 40);
   if (ti.description) return String(ti.description).slice(0, 60);
   return '';
+}
+
+// Tools that stop the turn to ask the person something.
+const ASKS = ['AskUserQuestion', 'ExitPlanMode'];
+
+const oneLine = (s, n) => {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+};
+
+/** What a session left running when its turn ended: background shells, subagents, scheduled checks. */
+function stillRunning(input) {
+  const tasks = (Array.isArray(input.background_tasks) ? input.background_tasks : [])
+    .filter((t) => !t.status || t.status === 'running')
+    .map((t) => (t.type === 'shell' ? detail({ tool_input: { command: t.command || t.description } }) : `agent: ${oneLine(t.description, 40)}`));
+  const crons = (Array.isArray(input.session_crons) ? input.session_crons : []).map((c) => `scheduled: ${oneLine(c.prompt || c.cron || c.schedule || 'check', 36)}`);
+  return [...tasks, ...crons];
+}
+
+/** The end of the agent's last message (its last paragraph, or last sentence when that's long): what it's waiting for. */
+function lastWords(message) {
+  const para = oneLine(String(message || '').trim().split(/\n\s*\n/).pop(), 1000);
+  if (para.length <= 90) return para || null;
+  return oneLine(/[^.!?]+[.!?]*\s*$/.exec(para)?.[0] || para, 140);
+}
+
+/** The last thing the agent said ends with a question: it wants an answer even if work runs on. */
+const asks = (message) => /\?\s*$/.test(String(message || '').replace(/[`*_)\]\s]+$/, ''));
+
+const quietParent = (prev) => prev.state === 'background' || prev.state === 'waiting';
+
+/** What a session is doing after this event: working, background (turn over, tasks still running) or waiting on a person. */
+function nextState(prev, input, event) {
+  const tool = input.tool_name;
+  const fromSubagent = Boolean(input.agent_id);
+  if (event === 'stop') {
+    const running = stillRunning(input);
+    const said = lastWords(input.last_assistant_message);
+    if (running.length && !asks(input.last_assistant_message)) return { state: 'background', waitingFor: null, background: running, said };
+    return { state: 'waiting', waitingFor: 'reply', background: running, said };
+  }
+  // A background subagent working on its own doesn't make the session busy again,
+  // nor does it answer a question the session is waiting on.
+  if (fromSubagent && quietParent(prev)) return {};
+  if (event === 'notify') return { state: 'waiting', waitingFor: prev.waitingFor === 'question' ? 'question' : 'permission', said: prev.waitingFor === 'question' ? prev.said : oneLine(input.message, 140) };
+  if (event === 'tool' && ASKS.includes(tool)) {
+    const q = input.tool_input?.questions?.[0]?.question || (tool === 'ExitPlanMode' ? 'Approve the plan?' : 'A question');
+    return { state: 'waiting', waitingFor: 'question', said: oneLine(q, 140), inTool: true };
+  }
+  return { state: 'working', waitingFor: null, background: [], said: null, inTool: event === 'tool' };
 }
 
 function heartbeat(input, event) {
@@ -139,11 +196,13 @@ function heartbeat(input, event) {
     feature,
     station: station || prev.station || null,
     model: input.model?.id || input.model || prev.model || null,
-    state: event === 'stop' ? 'waiting' : 'working',
+    ...nextState(prev, input, event),
     lastAt: at,
-    ...(event === 'tool' ? { tool: input.tool_name, detail: detail(input) } : {}),
-    ...(event === 'prompt' ? { tool: null, detail: prompt.replace(/\s+/g, ' ').slice(0, 60) } : {}),
+    ...(event === 'tool' && !(input.agent_id && quietParent(prev)) ? { tool: input.tool_name, detail: detail(input) } : {}),
+    ...(event === 'prompt' ? { tool: null, detail: promptDetail(prompt) } : {}),
   };
+  // When the session entered its current state, so the views can say "working 4m", "waiting 12m".
+  next.since = next.state === prev.state && prev.since ? prev.since : at;
   fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n');
   if (event === 'tool' && feature) {
     // A short live activity feed for the views; trimmed so it never grows large.
@@ -165,6 +224,8 @@ process.stdin.on('end', () => {
     else if (mode === 'guard') guard(input);
     else if (mode === 'pre') heartbeat(input, 'tool'), guard(input);
     else if (mode === 'prompt') heartbeat(input, 'prompt');
+    else if (mode === 'post') heartbeat(input, 'post');
+    else if (mode === 'notify') heartbeat(input, 'notify');
     else if (mode === 'stop') heartbeat(input, 'stop');
     else if (mode === 'session-end') heartbeat(input, 'end');
   } catch (err) {

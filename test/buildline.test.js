@@ -332,3 +332,60 @@ test('sound: chimes when a feature starts waiting on a person or ships, and turn
   assert.equal(JSON.parse(read(root, '.buildline/buildline.json')).sound, false);
   assert.equal(cli('sound', 'loud').status, 1);
 });
+
+test('hooks: background work, questions and permission prompts are told apart from waiting on you', () => {
+  const root = tmp();
+  install(root);
+  script(root, 'new', 'Fix the tests', '--type', 'fix');
+  const settings = JSON.parse(read(root, '.claude/settings.json'));
+  assert.equal(settings.hooks.Notification[0].matcher, 'permission_prompt|elicitation_dialog');
+  assert.ok(settings.hooks.PostToolUse);
+  const session = () => JSON.parse(read(root, '.buildline/sessions/s1.json'));
+  const live = () => liveState(findFeature(root, '1'), readSessions(root));
+  const waits = () => (({ why, said }) => ({ why, said }))(live().waitingFor || {});
+  const watchOut = () => spawnSync(process.execPath, [bin, 'watch', '-C', root], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } }).stdout;
+
+  hook(root, 'prompt', { session_id: 's1', prompt: '/buildline-ship 1' });
+  // The turn ends with a CI watch and a subagent still running (as Claude Code reports it).
+  const running = [
+    { id: 'b1', type: 'shell', status: 'running', command: 'gh run watch 40316894431 --interval 30 --exit-status' },
+    { id: 'a1', type: 'subagent', status: 'running', description: 'Check the deploy logs' },
+  ];
+  hook(root, 'stop', { session_id: 's1', last_assistant_message: "I'll close the feature once the deploy result comes in.", background_tasks: running, session_crons: [] });
+  assert.equal(session().state, 'background');
+  // How long it has been in the background, and since the session started.
+  const later = readSessions(root, Date.now() + 5 * 60e3)[0];
+  assert.ok(later.for >= 5 * 60e3 && later.for < 6 * 60e3 && later.total >= later.for, `${later.for} ${later.total}`);
+  assert.deepEqual(live().background, ['gh run watch 40316894431 --interval 30 --exit-s…', 'agent: Check the deploy logs']);
+  assert.equal(live().waiting, false);
+  assert.match(watchOut(), /BACKGROUND/);
+  assert.doesNotMatch(watchOut(), /NEEDS YOU/);
+  // The background subagent's own tool calls don't make the session look busy.
+  hook(root, 'pre', { session_id: 's1', agent_id: 'a1', tool_name: 'Bash', tool_input: { command: 'gh run view 1 --log' } });
+  assert.equal(session().state, 'background');
+  const since = session().since;
+  hook(root, 'pre', { session_id: 's1', agent_id: 'a1', tool_name: 'Read', tool_input: { file_path: 'x' } });
+  assert.equal(session().since, since); // still the same stretch in the background
+  // The deploy finishes: Claude Code wakes the session with a task notification.
+  hook(root, 'prompt', { session_id: 's1', prompt: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command "Watch the deploy" completed (exit code 0)</summary>\n</task-notification>' });
+  assert.deepEqual([session().state, session().detail, session().feature], ['working', 'Background command "Watch the deploy" completed (exit code 0)', '001']);
+  // A question at the end of a turn wants an answer even while work runs on.
+  hook(root, 'stop', { session_id: 's1', last_assistant_message: 'Deploy is green. Shall I open the PR now?', background_tasks: [running[1]] });
+  assert.deepEqual(waits(), { why: 'reply', said: 'Deploy is green. Shall I open the PR now?' });
+  // Mid-turn: a question tool, then a permission prompt, then work again.
+  hook(root, 'prompt', { session_id: 's1', prompt: 'yes' });
+  hook(root, 'pre', { session_id: 's1', tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: 'Squash the commits?' }] } });
+  assert.deepEqual(waits(), { why: 'question', said: 'Squash the commits?' });
+  hook(root, 'notify', { session_id: 's1', notification_type: 'permission_prompt', message: 'Claude needs your permission' });
+  assert.equal(live().waitingFor.why, 'question'); // the question tool raises a permission prompt too
+  hook(root, 'post', { session_id: 's1', tool_name: 'AskUserQuestion' });
+  assert.equal(live().working, true);
+  hook(root, 'pre', { session_id: 's1', tool_name: 'Bash', tool_input: { command: 'gh pr create --fill' } });
+  hook(root, 'notify', { session_id: 's1', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' });
+  assert.deepEqual(waits(), { why: 'permission', said: 'Claude needs your permission to use Bash' });
+  hook(root, 'post', { session_id: 's1', tool_name: 'Bash' });
+  assert.deepEqual([live().working, live().waiting], [true, false]);
+  // Nothing left running at the end of a turn: it's your move.
+  hook(root, 'stop', { session_id: 's1', last_assistant_message: 'PR opened.', background_tasks: [], session_crons: [] });
+  assert.deepEqual(waits(), { why: 'reply', said: 'PR opened.' });
+});

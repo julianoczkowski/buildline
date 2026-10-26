@@ -182,6 +182,9 @@ export function mergeSettings(root, config) {
   ensureHook('SessionStart', null, 'session-start');
   ensureHook('PreToolUse', null, 'pre');
   ensureHook('UserPromptSubmit', null, 'prompt');
+  ensureHook('PostToolUse', null, 'post');
+  // Claude asked for permission or input mid-turn: the session waits on a person.
+  ensureHook('Notification', 'permission_prompt|elicitation_dialog', 'notify');
   ensureHook('Stop', null, 'stop');
   ensureHook('SessionEnd', null, 'session-end');
 

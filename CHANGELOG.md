@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- **Waiting on you, or on something else?** A session that ends its turn while a CI watch, a background shell or a background agent is still running now shows as *Background* (a turning clock in `watch`), not *Needs you*. It needs you again only when that work is done, or if the agent asked a question.
+- *Needs you* also covers questions and permission prompts in the middle of a turn, and the card shows what the agent said or asked.
+- Every session shows how long it has been in its current state and how long it has run, e.g. `working 4m · up 1h12m` in `watch` and *In the background · 6m* on the dashboard.
+- `watch`: press `e` to hide the events panel and give the inspector the full width; `e` again shows it.
+- Long foreground commands, such as a 20-minute test run, stay *Working* instead of dropping off after 10 minutes.
+- Run `npx buildline@latest update` to get the new hooks (`PostToolUse`, `Notification`), then restart any Claude Code sessions.
+
 ## 0.7.0 · 2026-10-26
 - **Sound.** `watch` and the dashboard chime when a feature starts waiting on you (needs your reply, or blocked) or ships. Mute with `m` in `watch` or the dashboard's Sound button, start silent with `--quiet`, or turn it off with `buildline sound off`.
 

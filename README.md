@@ -134,10 +134,10 @@ Start at 2. Raise it as your gates and acceptance scenarios earn trust. [More on
 
 <img alt="buildline watch: features on tracks through spec, design, plan, build, verify, review and ship, with an inspector and live event log" src="docs/assets/watch.png">
 
-- a **comet** on the track means a Claude Code session is working on it right now, with its latest step; **NEEDS YOU** and **BLOCKED** mean an agent is waiting on your answer
+- a **comet** on the track means a Claude Code session is working on it right now, with its latest step; **NEEDS YOU** and **BLOCKED** mean an agent is waiting on your answer, permission or reply; **BACKGROUND** means it's waiting on something else, such as CI or a background agent, and will carry on by itself
 - run several sessions at once, one per feature: each gets its own track
 - the model under each station is the one that runs it
-- `↑↓` to inspect tasks and history, `⏎` to open the station on its model, `a` to approve, `q` to quit
+- `↑↓` to inspect tasks and history, `⏎` to open the station on its model, `a` to approve, `e` to hide the event log, `q` to quit
 - a **chime** when a feature starts waiting on you or ships, so you can look away; `m` mutes it, `npx buildline sound off` turns it off for good (the dashboard chimes too)
 
 ## The dashboard

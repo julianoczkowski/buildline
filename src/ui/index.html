@@ -78,6 +78,8 @@ main { padding: 16px 20px 40px; }
 .live .dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); align-self: center; animation: pulse 1.2s ease-in-out infinite; }
 .live.waiting .dot, .live.blocked .dot { background: var(--red); }
 .live.blocked .dot { animation: none; }
+.live.background b { color: var(--blue); }
+.live.background .dot { background: var(--blue); animation-duration: 2.4s; }
 .live code { font-size: 11px; background: none; padding: 0; }
 .card.is-working { border-color: var(--accent); }
 @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
@@ -242,21 +244,25 @@ function card(f) {
   </button>`;
 }
 const stationModel = (station) => { const m = S.config.models || {}; const v = m[station] ?? m.default; return v && v !== 'inherit' ? v : ''; };
-const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms < 3600e3 ? `${Math.round(ms / 60e3)}m` : `${Math.round(ms / 3600e3)}h`);
-/** What is happening on a feature right now: a blocker, a working session, or one waiting for a reply. */
+const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : `${Math.floor(ms / 3600e3)}h${Math.floor(ms / 60e3) % 60 ? `${Math.floor(ms / 60e3) % 60}m` : ''}`);
+const WAITS = { reply: 'Waiting for your reply', question: 'Asking you', permission: 'Needs your permission' };
+/** What is happening on a feature right now: a blocker, a session waiting on you, one working, or work left running in the background. */
 function liveLine(f) {
   if (f.blocked) return `<div class="live blocked"><i class="dot"></i><span class="wrap"><b>Blocked:</b> ${esc(f.blocked)}</span></div>`;
+  const w = f.live?.waitingFor;
+  if (w) return `<div class="live waiting" title="${esc(w.said || '')}"><i class="dot"></i><span><b>${WAITS[w.why] || WAITS.reply}</b>${w.for != null ? ` · ${ago(w.for)}` : ''}${w.said ? `<span class="wrap">${esc(w.said)}</span>` : ' in a Claude session'}</span></div>`;
   const ses = f.live?.sessions || [];
   const on = ses.filter((x) => x.state === 'working');
   if (f.live?.working) {
     const s = on[0];
     if (!s) return `<div class="live working"><i class="dot"></i><span><b>Working</b> · files changing</span></div>`;
     const model = String(s.model || stationModel(f.status) || '').replace(/^claude-/, '');
-    const head = [`<b>Working${on.length > 1 ? ` ×${on.length}` : ''}</b>`, ago(s.age), model && esc(model)].filter(Boolean).join(' · ');
+    const head = [`<b>Working${on.length > 1 ? ` ×${on.length}` : ''}</b>`, ago(s.for ?? s.age), model && esc(model)].filter(Boolean).join(' · ');
     const doing = s.tool ? `${esc(s.tool)} <code>${esc(s.detail || '')}</code>` : 'thinking';
-    return `<div class="live working" title="${esc([s.tool, s.detail].filter(Boolean).join(': '))}"><i class="dot"></i><span><span class="line">${head}</span><span class="line">${doing}</span></span></div>`;
+    return `<div class="live working" title="${esc([[s.tool, s.detail].filter(Boolean).join(': '), s.total != null && `session running ${ago(s.total)}`].filter(Boolean).join('\n'))}"><i class="dot"></i><span><span class="line">${head}</span><span class="line">${doing}</span></span></div>`;
   }
-  if (f.live?.waiting) return `<div class="live waiting"><i class="dot"></i><span><b>Waiting for your reply</b> in a Claude session</span></div>`;
+  const bg = f.live?.background || [];
+  if (bg.length) return `<div class="live background" title="${esc(bg.join('\n'))}"><i class="dot"></i><span><b>In the background</b> · ${ago(f.live.backgroundFor)}${bg.length > 1 ? ` · ${bg.length} jobs` : ''}<span class="line"><code>${esc(bg[0])}</code></span></span></div>`;
   return '';
 }
 function renderBoard() {
