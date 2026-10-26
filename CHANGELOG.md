@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 · 2026-10-26
 - **Sound.** `watch` and the dashboard chime when a feature starts waiting on you (needs your reply, or blocked) or ships. Mute with `m` in `watch` or the dashboard's Sound button, start silent with `--quiet`, or turn it off with `buildline sound off`.
 
 ## 0.6.0 · 2026-10-26
