@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 · 2026-10-26
 - A Claude Code session lets go of its feature once that feature is done, or after `/clear`, so reopening an old session no longer marks a finished feature as *Needs you*. Done features never show live sessions.
 - Recording progress on another feature (`feature.mjs task 2 …`) moves the session to that feature; reading one still doesn't.
 
