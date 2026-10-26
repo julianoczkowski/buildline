@@ -125,6 +125,7 @@ export function buildEntries(root, config) {
     const subagentStation = Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st]));
     for (const f of fs.readdirSync(path.join(templatesDir, 'agents'))) {
       const m = subagentStation[f] ? modelFor(config, subagentStation[f]) : null;
+      // Subagents follow the session's model (`model: inherit`) unless buildline.json picks one for their station.
       const content = read(`agents/${f}`);
       add(`.claude/agents/${f}`, m?.cli === 'claude' && m.model ? content.replace(/^model: .*$/m, `model: ${m.model}`) : content);
     }

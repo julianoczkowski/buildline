@@ -178,7 +178,11 @@ test('models: per-station routing reaches skills, subagents and launch commands'
   assert.doesNotMatch(skill('buildline-review'), /^model:/m);
   assert.match(skill('buildline-review'), /npx buildline step review \$ARGUMENTS --headless/);
   assert.match(read(root, '.claude/agents/buildline-verifier.md'), /^model: claude-opus-5-5$/m);
-  assert.match(read(root, '.claude/agents/buildline-reviewer.md'), /^model: opus$/m); // routed elsewhere: template default kept
+  assert.match(read(root, '.claude/agents/buildline-reviewer.md'), /^model: inherit$/m); // routed to another CLI: follows the session
+  // With no models chosen, no subagent is pinned to a model.
+  const plain = tmp();
+  install(plain);
+  for (const f of fs.readdirSync(path.join(plain, '.claude/agents'))) assert.match(read(plain, `.claude/agents/${f}`), /^model: inherit$/m, f);
 
   assert.deepEqual(parseModel('gemini'), { cli: 'gemini', model: null });
   assert.deepEqual(parseModel('inherit'), { cli: 'claude', model: null });

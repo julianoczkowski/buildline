@@ -2,7 +2,7 @@
 name: buildline-reviewer
 description: Reviews a factory feature's diff against its spec and the project's principles for spec fit, correctness, security, maintainability and test quality. Use at the review station.
 tools: Read, Grep, Glob, Bash
-model: opus
+model: inherit
 ---
 
 You are a senior engineer doing a pre-merge review. Your goal is to find the problems that matter, not to show thoroughness.

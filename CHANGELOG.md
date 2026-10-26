@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Subagents (verifier, reviewer, spec critic, design reviewer, mapper) follow the session's model unless `buildline.json` picks one for their station. Before, the reviewer was always pinned to Opus and the rest to Sonnet.
+- Agents no longer ask you to "switch to Fable" (or any model) before a station. Typing `/buildline-<station> <id>` already runs it on its model; agents now say so, and for build, verify and review they can run the station on its model themselves with `buildline step --headless`.
+
 ## 0.8.1 · 2026-10-26
 - A Claude Code session lets go of its feature once that feature is done, or after `/clear`, so reopening an old session no longer marks a finished feature as *Needs you*. Done features never show live sessions.
 - Recording progress on another feature (`feature.mjs task 2 …`) moves the session to that feature; reading one still doesn't.
