@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.2 · 2026-10-26
 - Subagents (verifier, reviewer, spec critic, design reviewer, mapper) follow the session's model unless `buildline.json` picks one for their station. Before, the reviewer was always pinned to Opus and the rest to Sonnet.
 - Agents no longer ask you to "switch to Fable" (or any model) before a station. Typing `/buildline-<station> <id>` already runs it on its model; agents now say so, and for build, verify and review they can run the station on its model themselves with `buildline step --headless`.
 
