@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 · 2026-10-26
 - **Waiting on you, or on something else?** A session that ends its turn while a CI watch, a background shell or a background agent is still running now shows as *Background* (a turning clock in `watch`), not *Needs you*. It needs you again only when that work is done, or if the agent asked a question.
 - *Needs you* also covers questions and permission prompts in the middle of a turn, and the card shows what the agent said or asked.
 - Every session shows how long it has been in its current state and how long it has run, e.g. `working 4m · up 1h12m` in `watch` and *In the background · 6m* on the dashboard.
