@@ -152,6 +152,7 @@ dialog h2 { margin: 0 0 12px; font-size: 17px; }
     <button role="tab" aria-selected="false" data-view="context">Context</button>
   </nav>
   <span class="spacer"></span>
+  <button class="btn" id="soundBtn" aria-pressed="true"></button>
   <button class="btn" id="whoami" title="Name used for approvals"></button>
   <button class="btn primary" id="newBtn">+ New</button>
 </header>
@@ -287,6 +288,10 @@ async function render() {
   $('#project').textContent = S.config.project;
   $('#autonomy').textContent = S.autonomyLabel || `L${S.config.autonomy}`;
   $('#whoami').textContent = me() ? `👤 ${me()}` : 'Set your name';
+  const on = soundOn();
+  $('#soundBtn').textContent = on ? '♪ Sound on' : '♪ Sound off';
+  $('#soundBtn').setAttribute('aria-pressed', on);
+  $('#soundBtn').title = on ? 'Chimes when a feature needs you or ships. Click to mute.' : 'Click to chime when a feature needs you or ships.';
   document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === view));
   if (!(view === 'context' && ctxEditing && $('#ctxEditor'))) $('#main').innerHTML = view === 'board' ? renderBoard() : await renderContext();
   if (openId) await renderDrawer();
@@ -343,6 +348,7 @@ $('#newDialog').addEventListener('close', async () => {
 });
 $('#newBtn').onclick = newFeature;
 $('#whoami').onclick = askName;
+$('#soundBtn').onclick = () => { try { localStorage.setItem('buildline.sound', soundOn() ? 'off' : 'on'); } catch {} render(); if (soundOn()) chime(true); };
 $('#backdrop').onclick = closeDrawer;
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !editing) closeDrawer(); });
 document.addEventListener('click', (e) => {
@@ -352,15 +358,42 @@ document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-ctx]'); if (x) { ctxPath = x.dataset.ctx; ctxEditing = false; render(); }
 });
 
+// ---- sound: one chime when a feature needs a person or ships ----
+let audio = null, needs = null, lastChime = 0;
+const soundOn = () => { let v = null; try { v = localStorage.getItem('buildline.sound'); } catch {} return v ? v === 'on' : S?.config.sound !== false; };
+const attention = (f) => (f.status === 'done' ? 'done' : f.blocked || f.live?.waiting ? 'waiting' : null);
+// Browsers only allow sound after the page has been touched, so the audio starts on the first click or key.
+const unlock = () => { audio ||= new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); };
+['pointerdown', 'keydown'].forEach((e) => document.addEventListener(e, unlock, { once: true }));
+function chime(force = false) {
+  if (!audio || (!force && Date.now() - lastChime < 3000)) return;
+  lastChime = Date.now();
+  const t = audio.currentTime, out = audio.createGain();
+  out.connect(audio.destination);
+  out.gain.setValueAtTime(0.0001, t);
+  out.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+  for (const [hz, level] of [[880, 1], [1320, 0.35], [1760, 0.15]]) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = hz; g.gain.value = level;
+    o.connect(g).connect(out); o.start(t); o.stop(t + 1.25);
+  }
+}
+function listen() {
+  const now = new Map(S.features.map((f) => [f.id, attention(f)]));
+  if (needs && soundOn() && [...now].some(([id, a]) => a && needs.get(id) !== a)) chime();
+  needs = now;
+}
+
 async function refresh() {
   try {
     const next = await api('/api/state');
     const changed = JSON.stringify(next) !== JSON.stringify(S);
-    S = next; if (changed) await render();
+    S = next; listen(); if (changed) await render();
   } catch (e) { toast('Dashboard lost connection: is `buildline ui` still running?'); }
 }
 refresh();
-setInterval(() => { if (!document.hidden && !editing && !ctxEditing) refresh(); }, 2000);
+setInterval(() => { if (!editing && !ctxEditing) refresh(); }, 2000);
 </script>
 </body>
 </html>

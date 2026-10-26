@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- **Sound.** `watch` and the dashboard chime when a feature starts waiting on you (needs your reply, or blocked) or ships. Mute with `m` in `watch` or the dashboard's Sound button, start silent with `--quiet`, or turn it off with `buildline sound off`.
+
 ## 0.6.0 · 2026-10-26
 - **Live sessions.** Claude Code hooks now note which session works on which feature and what it's doing. `watch` and the dashboard show it: *Working* (with the latest step, ×2 for two sessions), *Needs you* when a session waits for your reply, and the comet only runs while a session is really working.
 - **Blocked means blocked.** When an agent needs a decision it marks the feature blocked with its question, and the board shows the question.

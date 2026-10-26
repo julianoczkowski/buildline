@@ -51,6 +51,15 @@ Buildline's Claude Code hooks note which session is working on which feature and
 
 Run as many sessions as you like in the same folder, one per feature; each shows on its own row. Agents that don't run Claude Code hooks show as working for two minutes after they last changed the feature's files.
 
+### Sound
+
+While `watch` or the dashboard is open, Buildline plays one short chime when a feature starts waiting on a person (**Needs you** or **Blocked**) or ships, so you can work elsewhere and come back when it's your turn. Several at once make one chime.
+
+- In the terminal it plays your system's notification sound (Glass on macOS, the freedesktop sound on Linux), or the terminal bell elsewhere.
+- The dashboard chimes once you've clicked anywhere on it (browsers don't play sound before that), also from a background tab.
+- Mute: `m` in `watch`, or the **Sound** button in the dashboard (remembered by that browser). `--quiet` starts either one silent.
+- Off for the project: `npx buildline sound off` (`sound on` to bring it back).
+
 ## Type
 
 - **fix**: bug or small, well-understood change. Skips spec, design and plan; still needs a failing reproduction first and still gets verified.

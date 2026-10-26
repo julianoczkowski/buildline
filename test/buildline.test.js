@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { detect } from '../src/detect.js';
 import { makeConfig, plan, apply, removePlan, applyRemove } from '../src/install.js';
-import { createFeature, findFeature, approve, setStatus, nextAction, slugify } from '../src/features.js';
+import { createFeature, findFeature, approve, setStatus, nextAction, slugify, listFeatures, readSessions, liveState, attention, newAttention } from '../src/features.js';
 import { parseModel, parseModelList, launchArgs, stationPrompt } from '../src/models.js';
 
 const bin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'buildline.js');
@@ -302,4 +302,33 @@ test('hooks: heartbeat tracks sessions per feature, guard blocks hand edits to f
   assert.match(spawnSync(process.execPath, [bin, 'watch', '-C', root], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } }).stdout, /WORKING/);
   hook(root, 'session-end', { session_id: 'abc' });
   assert.ok(!fs.existsSync(path.join(root, '.buildline/sessions/abc.json')));
+});
+
+test('sound: chimes when a feature starts waiting on a person or ships, and turns off', () => {
+  const root = tmp();
+  install(root);
+  script(root, 'new', 'Nav focus', '--type', 'fix');
+  script(root, 'new', 'Price label', '--type', 'fix');
+  const look = () => {
+    const sessions = readSessions(root);
+    return new Map(listFeatures(root).map((f) => [f.id, attention(f, liveState(f, sessions))]));
+  };
+  const first = look();
+  assert.deepEqual(newAttention(null, first), []); // nothing on the first look
+  hook(root, 'prompt', { session_id: 'abc', prompt: '/buildline-build 1' });
+  assert.deepEqual(newAttention(first, look()), []); // working isn't news
+  const working = look();
+  hook(root, 'stop', { session_id: 'abc' });
+  assert.deepEqual(newAttention(working, look()), ['001']);
+  const waiting = look();
+  assert.deepEqual(newAttention(waiting, look()), []); // still waiting: no second chime
+  script(root, 'block', '2', 'Which currency?');
+  script(root, 'move', '1', 'done', '--force');
+  assert.deepEqual(newAttention(waiting, look()), ['001', '002']);
+
+  const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
+  assert.match(cli('sound').stdout, /Sound is on/);
+  assert.equal(cli('sound', 'off').status, 0);
+  assert.equal(JSON.parse(read(root, '.buildline/buildline.json')).sound, false);
+  assert.equal(cli('sound', 'loud').status, 1);
 });

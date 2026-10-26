@@ -138,6 +138,7 @@ Start at 2. Raise it as your gates and acceptance scenarios earn trust. [More on
 - run several sessions at once, one per feature: each gets its own track
 - the model under each station is the one that runs it
 - `↑↓` to inspect tasks and history, `⏎` to open the station on its model, `a` to approve, `q` to quit
+- a **chime** when a feature starts waiting on you or ships, so you can look away; `m` mutes it, `npx buildline sound off` turns it off for good (the dashboard chimes too)
 
 ## The dashboard
 
@@ -196,6 +197,7 @@ npx buildline watch                  live view of the line in the terminal
 npx buildline step <station> [id]    open a station on its model  --headless --model
 npx buildline models                 choose models  set <station|phase> <model> · check
 npx buildline run <id>               autopilot with Claude Code /goal  --headless
+npx buildline sound [on|off]         chime when a feature needs you or ships
 npx buildline gates                  run quality gates
 npx buildline doctor                 check the setup
 npx buildline update                 refresh managed files, keep your edits

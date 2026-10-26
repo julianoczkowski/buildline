@@ -18,10 +18,11 @@ ${pc.bold('Commands')}
   ${pc.cyan('new')} "<title>"            open a feature  ${pc.dim('--type fix|feature|epic  --owner <name>  --parent <id>')}
   ${pc.cyan('approve')} <id> <stage>     record a human approval (spec | design | plan)  ${pc.dim('--by <name>')}
   ${pc.cyan('move')} <id> <station>      move a feature to a station  ${pc.dim('--note "<why>"')}
-  ${pc.cyan('watch')}                    live view of the line in your terminal  ${pc.dim('--shipped  --once  --no-intro')}
-  ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open')}
+  ${pc.cyan('watch')}                    live view of the line in your terminal  ${pc.dim('--shipped  --once  --no-intro  --quiet')}
+  ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open  --quiet')}
   ${pc.cyan('step')} <station> [id]      open a station in the CLI and model set for it  ${pc.dim('--model <m>  --headless  --print')}
   ${pc.cyan('models')}                   choose models per station  ${pc.dim('set <station|phase> <model> · check')}
+  ${pc.cyan('sound')} [on|off]           chime when a feature needs you or ships (watch and dashboard)
   ${pc.cyan('run')} [id]                 autopilot: build → verify → review with Claude Code /goal  ${pc.dim('--headless  --print')}
   ${pc.cyan('gates')} [names...]         run the quality gates
   ${pc.cyan('doctor')}                   check the setup
@@ -75,13 +76,14 @@ const { values: opts, positionals } = parseArgs({
     once: { type: 'boolean' },
     shipped: { type: 'boolean' },
     'no-intro': { type: 'boolean' },
+    quiet: { type: 'boolean', short: 'q' },
     help: { type: 'boolean', short: 'h' },
     version: { type: 'boolean', short: 'v' },
   },
 });
 
 const root = path.resolve(opts.cwd || process.cwd());
-const o = { ...opts, dryRun: opts['dry-run'], ci: opts['no-ci'] ? false : opts.ci, open: !opts['no-open'], intro: !opts['no-intro'] };
+const o = { ...opts, dryRun: opts['dry-run'], ci: opts['no-ci'] ? false : opts.ci, open: !opts['no-open'], intro: !opts['no-intro'], sound: !opts.quiet };
 const [cmd, ...rest] = positionals;
 
 async function main() {
@@ -117,6 +119,8 @@ async function main() {
       return cli.models(root, rest, o);
     case 'run':
       return cli.run(root, rest[0], o);
+    case 'sound':
+      return cli.sound(root, rest[0]);
     case 'gates':
       return cli.gates(root, rest);
     case 'doctor':

@@ -219,3 +219,15 @@ export function liveState(feature, sessions, at = Date.now()) {
     waiting: !working.length && mine.some((s) => s.state === 'waiting'),
   };
 }
+
+/** What the chime is for: 'waiting' when a feature needs a person, 'done' once it ships, else null. */
+export function attention(feature, live) {
+  if (feature.status === 'done') return 'done';
+  return feature.blocked || live?.waiting ? 'waiting' : null;
+}
+
+/** Ids whose attention changed to waiting or done since `before` (a Map from the last look). */
+export function newAttention(before, now) {
+  if (!before) return [];
+  return [...now].filter(([id, a]) => a && before.get(id) !== a).map(([id]) => id);
+}

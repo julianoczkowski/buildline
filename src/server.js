@@ -33,8 +33,9 @@ function openBrowser(url) {
   } catch {}
 }
 
-function state(root) {
+function state(root, opts = {}) {
   const config = JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
+  if (opts.sound === false) config.sound = false;
   const sessions = readSessions(root);
   const features = listFeatures(root).map(({ path: _p, ...f }) => ({
     ...f,
@@ -89,7 +90,7 @@ export function serve(root, opts = {}) {
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'Not found' });
       if (req.method !== 'GET' && req.headers['x-buildline-token'] !== token) return send(403, { error: 'Bad token' });
 
-      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, state(root));
+      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, state(root, opts));
 
       if (url.pathname === '/api/file') {
         if (req.method === 'GET') {

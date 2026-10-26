@@ -7,7 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import pc from 'picocolors';
-import { listFeatures, nextAction, approve, readSessions, readActivity, liveState } from './features.js';
+import { listFeatures, nextAction, approve, readSessions, readActivity, liveState, attention, newAttention } from './features.js';
+import { chime, soundOn } from './sound.js';
 import { modelFor, describeModel } from './models.js';
 import { AUTONOMY, VERSION } from './install.js';
 
@@ -113,7 +114,8 @@ function loadState(root, showShipped) {
     .flatMap((f) => (f.history || []).map((h) => ({ ...h, id: f.id, key: `${f.id}|${h.at}|${h.note}` })))
     .concat(tools)
     .sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  return { config, all, features, events, sessions };
+  const needs = new Map(all.map((f) => [f.id, attention(f, liveState(f, sessions))]));
+  return { config, all, features, events, sessions, needs };
 }
 
 const stationIndex = (status) => (status === 'new' ? 0 : status === 'done' ? TRACK.length : TRACK.indexOf(status));
@@ -304,7 +306,7 @@ function render(st, ui, W, H) {
   }
 
   // footer
-  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped'], ['q', 'quit']];
+  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
   let fx = 1;
   const foot = screen[H - 1];
   if (ui.message && ui.messageUntil > Date.now()) fx = foot.put(1, ` ${ui.message} `, C.flash);
@@ -446,8 +448,10 @@ export async function watch(root, opts = {}) {
   }
   const ui = { root, tick: 0, sel: 0, scroll: 0, flash: new Map(), freshEvents: new Map(), shipped: false, message: '', messageUntil: 0 };
   let st = loadState(root, ui.shipped);
+  ui.sound = opts.sound !== false && soundOn(st.config);
   let lastStatus = new Map(st.all.map((f) => [f.id, f.status]));
   let seen = new Set(st.events.map((e) => e.key));
+  let needs = st.needs;
 
   out.write('\x1b[?1049h\x1b[?25l');
   if (opts.intro !== false) await boot(out, st, root);
@@ -462,6 +466,8 @@ export async function watch(root, opts = {}) {
       if (lastStatus.has(f.id) && lastStatus.get(f.id) !== f.status) ui.flash.set(f.id, Date.now() + 2500);
     }
     for (const e of st.events) if (!seen.has(e.key)) ui.freshEvents.set(e.key, Date.now() + 4000);
+    if (newAttention(needs, st.needs).length && ui.sound) chime(out);
+    needs = st.needs;
     lastStatus = new Map(st.all.map((f) => [f.id, f.status]));
     seen = new Set(st.events.map((e) => e.key));
     ui.sel = Math.max(0, Math.min(ui.sel, st.features.length - 1));
@@ -496,6 +502,7 @@ export async function watch(root, opts = {}) {
       if (k === '\x1b[A' || k === 'k') ui.sel = Math.max(0, ui.sel - 1);
       else if (k === '\x1b[B' || k === 'j') ui.sel = Math.min(st.features.length - 1, ui.sel + 1);
       else if (k === 's') (ui.shipped = !ui.shipped), refresh();
+      else if (k === 'm') (ui.sound = !ui.sound), say(ui.sound ? '♪ sound on' : 'sound muted until you quit');
       else if (k === 'u') return done({ action: 'ui' });
       else if ((k === '\r' || k === '\n') && f) {
         if (f.status === 'done') say(`${f.id} has shipped`);

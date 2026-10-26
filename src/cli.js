@@ -8,6 +8,7 @@ import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRe
 import { loadManifest } from './files.js';
 import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, describeModel, discoverModelOptions, checkModel, stationPrompt, launchArgs, externalClis } from './models.js';
 import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, STATIONS, TYPES } from './features.js';
+import { chime } from './sound.js';
 
 const LOGO = [
   pc.yellow('  ┌┐ ┬ ┬┬┬  ┌┬┐┬  ┬┌┐┌┌─┐'),
@@ -268,6 +269,19 @@ export async function watch(root, opts = {}) {
   const next = await (await import('./tui.js')).watch(root, opts);
   if (next?.action === 'step') return step(root, next.station, next.id);
   if (next?.action === 'ui') return (await import('./server.js')).serve(root, {});
+}
+
+export function sound(root, value) {
+  const config = loadConfig(root);
+  if (value) {
+    if (!['on', 'off'].includes(value)) throw new Error('Usage: buildline sound [on|off]');
+    if (value === 'on') delete config.sound;
+    else config.sound = false;
+    fs.writeFileSync(configPath(root), JSON.stringify(config, null, 2) + '\n');
+  }
+  const on = config.sound !== false;
+  console.log(`${on ? pc.green('♪') : pc.dim('♪')} Sound is ${on ? 'on' : 'off'}: ${on ? '`watch` and the dashboard chime when a feature needs you or ships.' : 'no chime.'} ${pc.dim(on ? 'Turn off: buildline sound off' : 'Turn on: buildline sound on')}`);
+  if (on && value === 'on') chime();
 }
 
 // ---- new / approve / move ----------------------------------------------------
