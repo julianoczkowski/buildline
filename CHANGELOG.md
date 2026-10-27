@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 · 2026-10-27
 Review, modelled on [how the Claude Code team reviews agent-written code](https://claude.dev/blog/solving-code-review-at-anthropic/):
 - **`REVIEW.md`.** A starter is added at the repo root (only if you don't have one) for code owners to say what failure looks like, what to always flag, what to skip and how to report. The reviewer follows it, and so does Claude Code's own Code Review.
 - **Findings are checked before they cost a round.** A new `buildline-finding-checker` subagent confirms each blocker and should-fix finding from the code; the rest are dropped.
