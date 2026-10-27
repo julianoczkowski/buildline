@@ -72,7 +72,7 @@ Aliases keep up automatically. Full ids pin a model, so nothing changes under yo
 ## How it's applied
 
 - **Claude Code skills** get a `model:` line, so `/buildline-plan` runs on Fable even if the session started on Sonnet, and the session goes back to its own model afterwards.
-- **Subagents follow their station**: verify uses `buildline-verifier`, review `buildline-reviewer`, spec `buildline-spec-critic`, design `buildline-design-reviewer`, and onboard `buildline-mapper`.
+- **Subagents follow their station**: verify uses `buildline-verifier`, review `buildline-reviewer` and `buildline-finding-checker`, spec `buildline-spec-critic`, design `buildline-design-reviewer`, and onboard `buildline-mapper`.
 - **Stations set to another CLI** are handed off. Type `/buildline-review 004` in Claude Code with review set to `codex`, and Claude runs `npx buildline step review 004 --headless`, waits, and summarises what Codex did. Codex and Gemini follow the same rule through `AGENTS.md`.
 - **Autopilot** (`buildline run`) starts Claude Code on the build model. Verify and review inside the loop use their own models, or hand off the same way.
 

@@ -114,6 +114,8 @@ Instructions in prose are advice. These are enforced:
 - **Acceptance lock.** A Claude Code hook blocks edits to a spec's `## Acceptance` while the feature is in build, verify or review. Agents can't move the goalposts.
 - **Independent verification.** The verifier subagent starts in a clean context with only the spec, so the builder never grades its own work.
 - **Evidence before `passes`.** A task is done only after its verification step and the gates have been run and observed.
+- **Checked review.** The reviewer follows your `REVIEW.md`, a second agent confirms every finding from the code before it costs a round, old bugs are labelled pre-existing, and after three rounds a person decides how to go on. [Modelled on how Anthropic reviews agent-written code →](docs/concepts.md#review)
+- **Sensitive paths need a person.** List paths like `billing/` or CI workflows in `review.sensitive`. A feature that touches them can't ship until someone approves the exact commit, at any autonomy level.
 - **Humans merge.** Always, at every autonomy level.
 - **Your files stay yours.** Buildline adds marked blocks to files you own, tracks its own files by hash, keeps your edits on `update`, and `remove` restores your settings exactly.
 
@@ -164,13 +166,14 @@ It runs on `127.0.0.1`, needs no account, and only touches Buildline's markdown 
 AGENTS.md                       + Buildline block: rules, pipeline, gates (read by every agent)
 CLAUDE.md                       + Buildline block: imports AGENTS.md, lists skills
 .claude/skills/buildline-*/     11 skills: /buildline, /buildline-new, /buildline-spec … /buildline-autopilot
-.claude/agents/buildline-*.md   5 subagents: spec-critic, verifier, reviewer, design-reviewer, mapper
+.claude/agents/buildline-*.md   6 subagents: spec-critic, verifier, reviewer, finding-checker, design-reviewer, mapper
 .claude/settings.json           + hooks (session briefing, acceptance lock) + gate permissions
 .cursor/rules/buildline.mdc     if you use Cursor
 GEMINI.md                       + import block, if you use Gemini CLI
 .github/workflows/buildline.yml optional: gates on every PR + Claude review against the spec
+REVIEW.md                       what review should care about in this repo     yours
 .buildline/
-  buildline.json                autonomy, gates, models, team, agents          yours
+  buildline.json                autonomy, gates, models, review, team, agents  yours
   principles.md                 the non-negotiables every change is checked against   yours
   context/                      product · architecture · design system        yours
   stations/                     one playbook per station                       managed

@@ -7,7 +7,7 @@ Buildline is meant to be bent to your team. Everything is plain markdown and JSO
 | Path | Ownership | On `buildline update` |
 |---|---|---|
 | `.buildline/buildline.json` | yours | never touched |
-| `.buildline/principles.md`, `.buildline/context/*` | yours | never touched |
+| `.buildline/principles.md`, `.buildline/context/*`, `REVIEW.md` | yours | never touched |
 | `.buildline/features/**` | yours | never touched |
 | `.buildline/stations/*`, `.buildline/templates/*`, `.buildline/bin/*` | managed | updated **only if you haven't edited them** |
 | `.claude/skills/buildline-*`, `.claude/agents/buildline-*`, `.cursor/rules/buildline.mdc` | managed | same |
@@ -25,6 +25,8 @@ Managed files are tracked by content hash in `.buildline/manifest.json`. If you 
 **Add a gate.** Add to `gates` in `buildline.json`, then run `npx buildline update` to refresh the gates list in `AGENTS.md` and the Claude permissions.
 
 **Add project rules.** Write them in `AGENTS.md` *outside* the Buildline block, or in `principles.md` if specs and reviews should be checked against them. For path-specific rules in Claude Code, use `.claude/rules/*.md` with `paths:` frontmatter.
+
+**Tune review.** Edit `REVIEW.md`: what failure looks like in each area, what to always flag, what to skip, the nit cap. Mark paths that always need a person in `review.sensitive` in `buildline.json`, and change the round limit with `review.maxRounds`. See [Review](concepts.md#review).
 
 **Change models.** Run `npx buildline models` to pick, or `npx buildline models set <station|phase> <model>`. Stations can run on any Claude model, Codex or Gemini. See [Models per station](models.md).
 

@@ -92,7 +92,24 @@ Commands that must pass for any task to count as done, configured in `buildline.
 
 ## Approvals
 
-Humans approve `spec`, `design` and `plan`, depending on the [autonomy level](autonomy.md). Approvals are recorded in `feature.json` with name and time, from Claude (only after an explicit "yes"), the dashboard, or `npx buildline approve <id> <stage>`. Agents are told never to record an approval on someone's behalf.
+Humans approve `spec`, `design` and `plan`, depending on the [autonomy level](autonomy.md), and changes to [sensitive paths](#review) at every level. Approvals are recorded in `feature.json` with name and time, from Claude (only after an explicit "yes"), the dashboard, or `npx buildline approve <id> <stage>`. Agents are told never to record an approval on someone's behalf.
+
+## Review
+
+The review station is built on how Anthropic reviews code that agents write ([research](research.md#how-anthropic-reviews-code-that-agents-write)):
+
+- **`REVIEW.md`** at the repo root says what review should care about in this codebase: what failure looks like, what to always flag, what not to flag, paths to skip, and how to report. Code owners write it; Buildline seeds a starter once and never overwrites it. Claude Code's own Code Review reads the same file.
+- **Findings are checked before they cost a round.** The `buildline-reviewer` subagent reports findings with file:line evidence, and the `buildline-finding-checker` subagent confirms each one from the code. Rejected findings are dropped.
+- **Pre-existing bugs** are labelled `pre-existing`, noted, and suggested as a separate fix, instead of holding up the feature.
+- **Three rounds, then a person decides.** The third time review sends a feature back to build, it is marked blocked: keep fixing, or rethink the approach? Re-reviews only look at what changed since the last one. Change the limit with `review.maxRounds` (`0` turns it off).
+- **Sensitive paths always need a person**, whatever the autonomy level:
+
+  ```json
+  "review": { "maxRounds": 3, "sensitive": [".github/workflows/**", ".gitlab-ci.yml", "billing/", "db/migrations/**"] }
+  ```
+
+  A feature whose commits touch one of these can't move to ship until someone runs `npx buildline approve <id> sensitive` (or presses Approve in the dashboard or `a` in `watch`). The approval covers the commit they saw; new commits need a fresh one. A bare name like `billing/` matches at any depth, as in `.gitignore`.
+- **The PR says how to undo it**: the ship station writes *Testing*, *Risk* and *How to revert* into every PR description.
 
 ## Context
 

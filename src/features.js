@@ -3,13 +3,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { render, templatesDir } from './render.js';
-import { moveBlocker } from '../templates/bin/feature.mjs';
+import { moveBlocker, sensitiveBlocker, approval, reviewConfig } from '../templates/bin/feature.mjs';
 
-export { moveBlocker };
+export { moveBlocker, sensitiveBlocker, reviewConfig };
 
 export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 'review', 'ship', 'done'];
 export const TYPES = ['fix', 'feature', 'epic'];
-export const APPROVAL_STAGES = ['spec', 'design', 'plan'];
+export const APPROVAL_STAGES = ['spec', 'design', 'plan', 'sensitive'];
 
 export const featuresDir = (root) => path.join(root, '.buildline', 'features');
 const today = () => new Date().toISOString().slice(0, 10);
@@ -113,7 +113,8 @@ export function setStatus(feature, status, note) {
 
 export function approve(feature, stage, by) {
   if (!APPROVAL_STAGES.includes(stage)) throw new Error(`Approval stage must be one of: ${APPROVAL_STAGES.join(', ')}`);
-  feature.approvals = { ...feature.approvals, [stage]: { by: by || 'unknown', at: now() } };
+  feature.approvals = { ...feature.approvals, [stage]: approval(path.resolve(feature.path, '..', '..', '..'), stage, by || 'unknown') };
+  if (stage === 'sensitive' && feature.awaiting === 'sensitive') Object.assign(feature, { blocked: null, awaiting: null });
   feature.history = [...(feature.history || []), { at: now(), station: stage, note: `${stage} approved by ${by || 'unknown'}` }];
   return saveFeature(feature);
 }
@@ -123,6 +124,7 @@ export function nextAction(feature, autonomy = 2) {
   const a = feature.approvals || {};
   const tasks = feature.tasks || [];
   const passing = tasks.filter((t) => t.passes).length;
+  if (feature.blocked && feature.awaiting === 'sensitive') return { who: 'eng', text: `blocked: ${feature.blocked}`, cmd: `buildline approve ${feature.id} sensitive` };
   if (feature.blocked) return { who: 'human', text: `blocked: ${feature.blocked}` };
   switch (feature.status) {
     case 'spec':

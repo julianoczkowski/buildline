@@ -53,5 +53,7 @@ Keep each file under ~120 lines. Prefer bullet points and file paths over prose.
 - `.buildline/context/architecture.md`: stack, module map, data flow, key decisions (with the reason), hazards.
 - `.buildline/context/design.md`: design principles, tokens, components, patterns, accessibility baseline, where the source of truth lives (Figma link, Storybook, token files).
 - `.buildline/principles.md`: review the defaults with the person and adjust. These are the rules every change is checked against.
+- `REVIEW.md` (repo root): what review should care about here. Replace the examples under *What failure looks like here* with this project's own areas, list generated or vendored paths under *Skip*, and keep it under ~40 lines. If the project already has a `REVIEW.md`, leave it alone and mention it.
+- `buildline.json → review.sensitive`: paths where every change needs a person, whatever the autonomy level (CI workflows are there by default). Propose the obvious ones you found, such as auth, billing and payments, migrations, infrastructure and release scripts, and confirm them with the person.
 
 Finish with a short summary of what you learned, what's still unknown, and the recommended next step.

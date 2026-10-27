@@ -16,7 +16,7 @@ ${pc.bold('Commands')}
   ${pc.cyan('init')}                     install the factory into this project
   ${pc.cyan('status')}                   show features, stations and what's next
   ${pc.cyan('new')} "<title>"            open a feature  ${pc.dim('--type fix|feature|epic  --owner <name>  --parent <id>')}
-  ${pc.cyan('approve')} <id> <stage>     record a human approval (spec | design | plan)  ${pc.dim('--by <name>')}
+  ${pc.cyan('approve')} <id> <stage>     record a human approval (spec | design | plan | sensitive)  ${pc.dim('--by <name>')}
   ${pc.cyan('move')} <id> <station>      move a feature to a station  ${pc.dim('--note "<why>"')}
   ${pc.cyan('watch')}                    live view of the line in your terminal  ${pc.dim('--shipped  --once  --no-intro  --quiet')}
   ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open  --quiet')}
@@ -100,7 +100,7 @@ async function main() {
     case 'new':
       return cli.newFeature(root, rest.join(' ') || null, o);
     case 'approve':
-      if (rest.length < 2) throw new Error('Usage: buildline approve <id> <spec|design|plan>');
+      if (rest.length < 2) throw new Error('Usage: buildline approve <id> <spec|design|plan|sensitive>');
       return cli.approveFeature(root, rest[0], rest[1], o);
     case 'move':
       if (rest.length < 2) throw new Error('Usage: buildline move <id> <station>');

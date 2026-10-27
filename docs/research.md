@@ -46,6 +46,19 @@ Shared standards: **AGENTS.md** (Linux Foundation's Agentic AI Foundation; read 
 - **Rules that must always hold belong in hooks, not prose.** Hooks can block a tool call with exit code 2. [Hooks](https://code.claude.com/docs/en/hooks)
 - **`/goal <condition>`** keeps working across turns until a fast evaluator judges the condition met. The condition must be provable from the conversation, and should name a measurable end state, a check and a turn bound. [Goal](https://code.claude.com/docs/en/goal)
 
+## How Anthropic reviews code that agents write
+
+Claude writes about 90% of Claude Code's own code and more than 80% of what Anthropic merges overall. The Claude Code team's answer is not to drop review. Machines do most of the reading, scarce human attention goes where the risk is, and mistakes are made cheap to undo. ([How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/), Oct 2026; [Code Review for Claude Code](https://claude.com/resources/articles/code-review), Mar 2026; [When AI builds itself](https://www.anthropic.com/institute/recursive-self-improvement), 2026.) Buildline 0.9 took these parts:
+
+- **`REVIEW.md` written by code owners**: what failure means in this repo, a cap on nits, paths to skip, file:line evidence, and a summary that starts with a count. Buildline seeds one, and its reviewer reads it.
+- **Every finding is checked** before anyone acts on it. Anthropic uses several agents voting; Buildline uses one checker subagent that has to confirm each finding from the code.
+- **Pre-existing bugs are labelled as such**, so they don't hold up the change or get blamed on its author.
+- **A cap of three review rounds**, then the author steps back. One of their PRs went through 50 rounds overnight, mostly over old bugs. Re-reviews look only at the new diff.
+- **Risk set by the change, not the author**: paths that always need a person (CI workflows by default), with the approval tied to the commit the person saw.
+- **A blocking security pass**, and a PR template with Testing, Risk and How to revert.
+
+Not adopted yet: a risk classifier, multi-agent voting and incident-derived reviewer evals. Anthropic notes these pay off at high review volume.
+
 ## Gaps in existing tools, and what Factory does about them
 
 | Gap | Factory's answer |

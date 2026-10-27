@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+Review, modelled on [how the Claude Code team reviews agent-written code](https://claude.dev/blog/solving-code-review-at-anthropic/):
+- **`REVIEW.md`.** A starter is added at the repo root (only if you don't have one) for code owners to say what failure looks like, what to always flag, what to skip and how to report. The reviewer follows it, and so does Claude Code's own Code Review.
+- **Findings are checked before they cost a round.** A new `buildline-finding-checker` subagent confirms each blocker and should-fix finding from the code; the rest are dropped.
+- **Pre-existing bugs** are labelled `pre-existing` and suggested as a separate fix instead of holding up the feature. Repeated mistakes are reported once as a class, and re-reviews only look at what changed.
+- **Three rounds, then a person decides.** The third time review sends a feature back to build, it's marked blocked: keep fixing, or rethink the approach? Set `review.maxRounds` in `buildline.json` (`0` turns it off).
+- **Sensitive paths need a person** at every autonomy level. A feature whose commits touch `review.sensitive` (CI workflows by default; add `billing/`, migrations, auth…) can't move to ship until someone approves that commit: `buildline approve <id> sensitive`, the dashboard, or `a` in `watch`. New commits need a fresh approval.
+- Review runs a security pass on risky diffs, and every PR description has *Testing*, *Risk* and *How to revert*.
+- Onboarding fills in `REVIEW.md` and proposes sensitive paths for your project.
+- Run `npx buildline@latest update` to get the new playbooks and subagent. Existing projects get the default sensitive paths without editing `buildline.json`.
+
 ## 0.8.2 · 2026-10-26
 - Subagents (verifier, reviewer, spec critic, design reviewer, mapper) follow the session's model unless `buildline.json` picks one for their station. Before, the reviewer was always pinned to Opus and the rest to Sonnet.
 - Agents no longer ask you to "switch to Fable" (or any model) before a station. Typing `/buildline-<station> <id>` already runs it on its model; agents now say so, and for build, verify and review they can run the station on its model themselves with `buildline step --headless`.

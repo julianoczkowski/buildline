@@ -42,7 +42,7 @@ A task only gets `"passes": true` after the gates pass **and** its own verificat
 2. **Never weaken the checks.** Do not delete, skip, or loosen tests, acceptance scenarios or gates to make them pass. If a check is wrong, stop and say so.
 3. **Never edit the `acceptance` section of a spec during build.** It belongs to the spec owner.
 4. **Leave a trail.** Append to `progress.md` at the end of every work session: what changed, what was verified, what is next.
-5. **Respect the autonomy level** (`autonomy` in `buildline.json`): pause for human approval where the station playbook says to.
+5. **Respect the autonomy level** (`autonomy` in `buildline.json`): pause for human approval where the station playbook says to Record an approval (including `sensitive`, for paths in `review.sensitive`) only after the person said yes in this conversation, never with `--force` to get around one.
 6. **Small, reversible steps.** Prefer many small commits over one large one. Match the existing code style.
 7. **Ask, don't guess,** when the spec is ambiguous about user-facing behaviour.
 8. **Record state with the feature script.** `node .buildline/bin/feature.mjs move|task|log|block|approve …` stamps real times, keeps the history the team watches live, and refuses moves that skip a required approval. Never edit `feature.json` by hand.

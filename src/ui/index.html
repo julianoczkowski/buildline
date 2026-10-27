@@ -321,9 +321,9 @@ async function renderDrawer() {
   } else {
     body = `<ul class="history">${(f.history || []).slice().reverse().map((h) => `<li><time>${esc((h.at || '').slice(0, 16).replace('T', ' '))}</time><strong>${esc(h.station)}</strong> · ${esc(h.note)}</li>`).join('')}</ul>`;
   }
-  const appr = ['spec', 'design', 'plan'].map((s) => f.approvals?.[s]
+  const appr = ['spec', 'design', 'plan', ...(f.awaiting === 'sensitive' || f.approvals?.sensitive ? ['sensitive'] : [])].map((s) => f.approvals?.[s] && !(s === 'sensitive' && f.awaiting === 'sensitive')
     ? `<span class="chip" title="${esc(f.approvals[s].at)}">✓ ${s} · ${esc(f.approvals[s].by)}</span>`
-    : `<button class="btn small" onclick="approveStage('${s}')">Approve ${s}</button>`).join('');
+    : `<button class="btn small" onclick="approveStage('${s}')">Approve ${s === 'sensitive' ? 'sensitive paths' : s}</button>`).join('');
   d.innerHTML = `
     <header><div style="min-width:0;flex:1"><div class="top" style="display:flex;gap:6px;align-items:center"><span class="id" style="font:12px var(--mono);color:var(--ink-3)">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span><span class="chip">${esc(f.status)}</span>${f.owner ? `<span class="chip">👤 ${esc(f.owner)}</span>` : ''}</div><h1>${esc(f.title)}</h1></div><button class="btn" onclick="closeDrawer()" aria-label="Close">✕</button></header>
     <div class="actions">${appr}<span class="spacer"></span>

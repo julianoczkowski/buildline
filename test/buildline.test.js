@@ -424,3 +424,66 @@ test('hooks: a session lets go of its feature once it is done, so a reopened ses
   hook(root, 'session-start', { session_id: 's1', source: 'clear' });
   assert.equal(session().feature, null);
 });
+
+test('review: sensitive paths need a person, tied to the commit they saw', () => {
+  const root = tmp();
+  const g = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root, encoding: 'utf8' });
+  g('init', '-q', '-b', 'main');
+  install(root, { autonomy: 4 });
+  const cfg = JSON.parse(read(root, '.buildline/buildline.json'));
+  assert.deepEqual(cfg.review.sensitive, ['.github/workflows/**', '.gitlab-ci.yml']);
+  assert.ok(fs.existsSync(path.join(root, 'REVIEW.md')));
+  assert.ok(fs.existsSync(path.join(root, '.claude/agents/buildline-finding-checker.md')));
+  cfg.review.sensitive.push('billing/');
+  fs.writeFileSync(path.join(root, '.buildline/buildline.json'), JSON.stringify(cfg));
+  g('add', '.');
+  g('commit', '-qm', 'init');
+  g('checkout', '-qb', 'feat/x');
+  script(root, 'new', 'Charge cards');
+  write(root, 'src/billing/charge.js', 'export const charge = 1;\n');
+  g('add', '.');
+  g('commit', '-qm', 'feat: charge [001/T1]');
+  script(root, 'move', '1', 'review', '--force');
+
+  const refused = script(root, 'move', '1', 'ship');
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /sensitive paths \(src\/billing\/charge\.js\)/);
+  let f = findFeature(root, '1');
+  assert.equal(f.status, 'review');
+  assert.equal(f.awaiting, 'sensitive');
+  assert.equal(nextAction(f, 4).cmd, 'buildline approve 001 sensitive');
+
+  assert.equal(script(root, 'approve', '1', 'sensitive', '--by', 'Ana').status, 0);
+  f = findFeature(root, '1');
+  assert.equal(f.blocked, null);
+  // New commits after the approval need a fresh one.
+  write(root, 'src/billing/charge.js', 'export const charge = 2;\n');
+  g('commit', '-qam', 'fix: charge [001/T2]');
+  assert.match(script(root, 'move', '1', 'ship').stderr, /new commits since the last approval/);
+  approve(findFeature(root, '1'), 'sensitive', 'Ana');
+  assert.equal(script(root, 'move', '1', 'ship').status, 0);
+
+  // A feature that touches nothing sensitive moves on without asking.
+  script(root, 'new', 'Copy tweak');
+  write(root, 'README.md', 'hello\n');
+  g('add', '.');
+  g('commit', '-qm', 'docs: copy [002/T1]');
+  script(root, 'move', '2', 'review', '--force');
+  assert.equal(script(root, 'move', '2', 'ship').status, 0, 'the branch diff includes billing, but 002 only touched README');
+});
+
+test('review: after three rounds back to build, a person decides how to go on', () => {
+  const root = tmp();
+  install(root, { autonomy: 4 });
+  script(root, 'new', 'Thing');
+  script(root, 'move', '1', 'review', '--force');
+  for (let i = 1; i <= 2; i++) {
+    script(root, 'move', '1', 'build', '--note', 'findings');
+    assert.equal(findFeature(root, '1').blocked, null);
+    script(root, 'move', '1', 'review', '--force');
+  }
+  script(root, 'move', '1', 'build', '--note', 'findings');
+  const f = findFeature(root, '1');
+  assert.equal(f.metrics.reviewRounds, 3);
+  assert.match(f.blocked, /sent this back 3 times/);
+});

@@ -7,7 +7,7 @@ import { detect, describeStack } from './detect.js';
 import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRemove, defaultGates } from './install.js';
 import { loadManifest } from './files.js';
 import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, describeModel, discoverModelOptions, checkModel, stationPrompt, launchArgs, externalClis } from './models.js';
-import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, STATIONS, TYPES } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, sensitiveBlocker, STATIONS, TYPES } from './features.js';
 import { chime } from './sound.js';
 
 const LOGO = [
@@ -324,7 +324,8 @@ export function moveFeature(root, ref, station, opts) {
   const f = findFeature(root, ref);
   if (!f) throw new Error(`No feature matching "${ref}".`);
   if (!STATIONS.includes(station)) throw new Error(`Station must be one of: ${STATIONS.join(', ')}`);
-  const blocker = opts.force ? null : moveBlocker(f, station, loadConfig(root).autonomy ?? 2);
+  const config = loadConfig(root);
+  const blocker = opts.force ? null : moveBlocker(f, station, config.autonomy ?? 2) || (sensitiveBlocker(root, f, station, config) && `${sensitiveBlocker(root, f, station, config)} Run npx buildline approve ${f.id} sensitive after looking at them.`);
   if (blocker) throw new Error(blocker.replace(/node \.buildline\/bin\/feature\.mjs approve/, 'npx buildline approve') + ' Or pass --force.');
   setStatus(f, station, opts.note);
   console.log(`${pc.green('✔')} ${f.id} → ${station}`);
@@ -619,7 +620,7 @@ export async function home(root) {
       if (what === 'station') return step(root, MODEL_STATIONS.includes(f.status) && f.status !== 'new' ? f.status : 'buildline', f.id);
       if (what === 'run') return run(root, f.id, {});
       if (what === 'approve') {
-        const stage = bail(await p.select({ message: 'Approve which stage?', options: ['spec', 'design', 'plan'].map((s) => ({ value: s, label: s, hint: f.approvals?.[s] ? `already approved by ${f.approvals[s].by}` : '' })) }));
+        const stage = bail(await p.select({ message: 'Approve which stage?', options: [...['spec', 'design', 'plan'], ...(f.awaiting === 'sensitive' ? ['sensitive'] : [])].map((s) => ({ value: s, label: s, hint: f.approvals?.[s] ? `already approved by ${f.approvals[s].by}` : '' })) }));
         approveFeature(root, f.id, stage, {});
       }
       if (what === 'move') {

@@ -13,14 +13,15 @@
 //   node .buildline/bin/feature.mjs log <id> "<note>"
 //   node .buildline/bin/feature.mjs block <id> "<question or reason>"
 //   node .buildline/bin/feature.mjs unblock <id> [--note "…"]
-//   node .buildline/bin/feature.mjs approve <id> <spec|design|plan> --by "<name>"   (only when that person said yes)
+//   node .buildline/bin/feature.mjs approve <id> <spec|design|plan|sensitive> --by "<name>"   (only when that person said yes)
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 'review', 'ship', 'done'];
 const TYPES = ['fix', 'feature', 'epic'];
-const STAGES = ['spec', 'design', 'plan'];
+const STAGES = ['spec', 'design', 'plan', 'sensitive'];
 const now = () => new Date().toISOString();
 
 /** Approvals a feature needs before it may leave a station, by autonomy level. Fixes need none. */
@@ -51,6 +52,74 @@ export function moveBlocker(feature, to, autonomy) {
   return null;
 }
 
+// ---- review guardrails ------------------------------------------------------------
+// Paths that always need a person, whatever the autonomy level, and how many times
+// review may send a feature back to build before a person decides how to go on.
+
+export const DEFAULT_SENSITIVE = ['.github/workflows/**', '.gitlab-ci.yml'];
+export const DEFAULT_MAX_ROUNDS = 3;
+
+export function reviewConfig(config) {
+  const r = config?.review || {};
+  return { sensitive: Array.isArray(r.sensitive) ? r.sensitive : DEFAULT_SENSITIVE, maxRounds: r.maxRounds ?? DEFAULT_MAX_ROUNDS };
+}
+
+/** `src/**`, `*.yml`, `billing/` style globs to a RegExp over repo-relative paths. */
+export function globToRegex(glob) {
+  let g = String(glob).trim().replace(/^\.\//, '');
+  if (!g.replace(/\/$/, '').includes('/')) g = '**/' + g; // like .gitignore: a bare name matches at any depth
+  if (g.endsWith('/')) g += '**';
+  let re = '';
+  for (let i = 0; i < g.length; i++) {
+    const c = g[i];
+    if (c === '*' && g[i + 1] === '*') {
+      i++;
+      if (g[i + 1] === '/') { i++; re += '(?:.*/)?'; } else re += '.*';
+    } else if (c === '*') re += '[^/]*';
+    else if (c === '?') re += '[^/]';
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`);
+}
+
+export const matchSensitive = (files, globs) => {
+  const res = globs.map(globToRegex);
+  return files.filter((f) => res.some((re) => re.test(f)));
+};
+
+const git = (root, args) => {
+  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.trim() : null;
+};
+export const headCommit = (root) => git(root, ['rev-parse', 'HEAD']);
+
+/** Files a feature changed: its tagged commits (`[004/T1]`), or else its branch against the default branch. */
+export function changedFiles(root, id) {
+  if (!headCommit(root)) return [];
+  let out = git(root, ['log', '--name-only', '--format=', '-E', `--grep=\\[${id}[]/]`]);
+  if (!out) {
+    const base = ['origin/HEAD', 'main', 'master'].map((b) => git(root, ['merge-base', 'HEAD', b])).find(Boolean);
+    out = (base && base !== headCommit(root) && git(root, ['diff', '--name-only', `${base}...HEAD`])) || '';
+  }
+  return [...new Set(out.split('\n').map((l) => l.trim()).filter(Boolean))];
+}
+
+/**
+ * Why `feature` can't move on to ship yet because it touches sensitive paths, or null.
+ * The approval covers one commit: new commits after it need a fresh one.
+ */
+export function sensitiveBlocker(root, feature, to, config) {
+  const from = STATIONS.indexOf(feature.status);
+  if (STATIONS.indexOf(to) < STATIONS.indexOf('ship') || from >= STATIONS.indexOf('ship')) return null;
+  const hits = matchSensitive(changedFiles(root, feature.id), reviewConfig(config).sensitive);
+  if (!hits.length) return null;
+  const head = headCommit(root);
+  if (feature.approvals?.sensitive?.commit === head) return null;
+  const files = hits.slice(0, 5).join(', ') + (hits.length > 5 ? ` and ${hits.length - 5} more` : '');
+  const again = feature.approvals?.sensitive ? ' There are new commits since the last approval.' : '';
+  return `Touches sensitive paths (${files}), so a person approves it before ship.${again}`;
+}
+
 export function featuresDir(root) {
   return path.join(root, '.buildline', 'features');
 }
@@ -75,34 +144,59 @@ export function save({ dir, data }) {
   fs.writeFileSync(path.join(dir, 'feature.json'), JSON.stringify(data, null, 2) + '\n');
 }
 
-const autonomyOf = (root) => {
+const configOf = (root) => {
   try {
-    return JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8')).autonomy ?? 2;
+    return JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
   } catch {
-    return 2;
+    return {};
   }
 };
+const autonomyOf = (root) => configOf(root).autonomy ?? 2;
 const record = (data, station, note) => (data.history = [...(data.history || []), { at: now(), station, note }]);
 
 export function move(root, ref, to, { note, force = false } = {}) {
   const f = load(root, ref);
   const blocker = force ? null : moveBlocker(f.data, to, autonomyOf(root));
   if (blocker) throw new Error(blocker);
+  const config = configOf(root);
+  const sensitive = force ? null : sensitiveBlocker(root, f.data, to, config);
+  if (sensitive) {
+    f.data.blocked = sensitive;
+    f.data.awaiting = 'sensitive';
+    record(f.data, f.data.status, `Blocked: ${sensitive}`);
+    save(f);
+    throw new Error(
+      `${sensitive} Ask the person to look at those files and approve. If they say yes in this conversation, record it with ` +
+        `node .buildline/bin/feature.mjs approve ${f.data.id} sensitive --by "<their name>". They can also approve in npx buildline ui or watch.`,
+    );
+  }
   const from = f.data.status;
   if (['verify', 'review'].includes(from) && to === 'build') f.data.metrics = { ...f.data.metrics, reworks: (f.data.metrics?.reworks || 0) + 1 };
+  if (from === 'review' && to === 'build') f.data.metrics = { ...f.data.metrics, reviewRounds: (f.data.metrics?.reviewRounds || 0) + 1 };
   if (to === 'done') f.data.metrics = { ...f.data.metrics, shippedAt: now() };
   f.data.status = to;
   f.data.blocked = null;
+  f.data.awaiting = null;
   record(f.data, to, note || `Moved from ${from} to ${to}`);
+  const rounds = f.data.metrics?.reviewRounds || 0;
+  const { maxRounds } = reviewConfig(config);
+  if (from === 'review' && to === 'build' && maxRounds && rounds >= maxRounds) {
+    f.data.blocked = `Review has sent this back ${rounds} times. Keep fixing, or step back and rethink the approach?`;
+    record(f.data, to, `Blocked: ${f.data.blocked}`);
+  }
   save(f);
   return f.data;
 }
+
+/** An approval record. A sensitive-path approval is tied to the commit the person saw. */
+export const approval = (root, stage, by) => ({ by, at: now(), ...(stage === 'sensitive' ? { commit: headCommit(root) } : {}) });
 
 export function approve(root, ref, stage, by) {
   if (!STAGES.includes(stage)) throw new Error(`Approval stage must be one of: ${STAGES.join(', ')}`);
   if (!by) throw new Error('Say who approved: --by "<name>". Only record an approval the person gave you.');
   const f = load(root, ref);
-  f.data.approvals = { ...f.data.approvals, [stage]: { by, at: now() } };
+  f.data.approvals = { ...f.data.approvals, [stage]: approval(root, stage, by) };
+  if (stage === 'sensitive' && f.data.awaiting === 'sensitive') Object.assign(f.data, { blocked: null, awaiting: null });
   record(f.data, stage, `${stage} approved by ${by}`);
   save(f);
   return f.data;
@@ -148,6 +242,7 @@ export function block(root, ref, reason) {
 export function unblock(root, ref, note) {
   const f = load(root, ref);
   f.data.blocked = null;
+  f.data.awaiting = null;
   record(f.data, f.data.status, note ? `Unblocked: ${note}` : 'Unblocked');
   save(f);
 }

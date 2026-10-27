@@ -5,6 +5,7 @@ import path from 'node:path';
 import { render, templatesDir } from './render.js';
 import { loadManifest, saveManifest, planWrite, applyPlan, planRemove, hash } from './files.js';
 import { modelFor, STATION_SUBAGENTS, CLIS } from './models.js';
+import { DEFAULT_SENSITIVE, DEFAULT_MAX_ROUNDS } from '../templates/bin/feature.mjs';
 
 export const VERSION = JSON.parse(fs.readFileSync(path.join(templatesDir, '..', 'package.json'), 'utf8')).version;
 
@@ -65,6 +66,7 @@ export function makeConfig(stack, answers) {
     commands: { dev: stack.commands?.dev || null },
     gates: answers.gates || defaultGates(stack),
     models: answers.models || {},
+    review: { maxRounds: DEFAULT_MAX_ROUNDS, sensitive: DEFAULT_SENSITIVE },
   };
 }
 
@@ -122,7 +124,7 @@ export function buildEntries(root, config) {
       const body = `${handoff}\nRead \`.buildline/stations/${station}.md\` now and follow it step by step. It is the single source of truth for this station, shared with every other agent in the project.\n\nArguments: $ARGUMENTS\n`;
       add(`.claude/skills/${name}/SKILL.md`, front.join('\n') + '\n' + body);
     }
-    const subagentStation = Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st]));
+    const subagentStation = { ...Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st])), 'buildline-finding-checker.md': 'review' };
     for (const f of fs.readdirSync(path.join(templatesDir, 'agents'))) {
       const m = subagentStation[f] ? modelFor(config, subagentStation[f]) : null;
       // Subagents follow the session's model (`model: inherit`) unless buildline.json picks one for their station.
@@ -136,6 +138,7 @@ export function buildEntries(root, config) {
   add('.buildline/buildline.json', JSON.stringify(config, null, 2) + '\n', { userOwned: true });
   add('.buildline/README.md', render(read('buildline-readme.md'), { project: config.project }));
   add('.buildline/principles.md', read('principles.md'), { userOwned: true });
+  add('REVIEW.md', read('REVIEW.md'), { userOwned: true });
   for (const f of ['product.md', 'architecture.md', 'design.md']) add(`.buildline/context/${f}`, render(read(`context/${f}`), vars), { userOwned: true });
   for (const f of fs.readdirSync(path.join(templatesDir, 'stations'))) add(`.buildline/stations/${f}`, read(`stations/${f}`));
   for (const f of ['spec.md', 'progress.md']) add(`.buildline/templates/${f}`, read(`feature/${f}`));

@@ -12,7 +12,7 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | `init` | Detect stack, ask setup questions, preview files, install. | `-y/--yes`, `--agents claude,codex,cursor,gemini,copilot`, `--autonomy 1-4`, `--team developer,designer,pm`, `--models planning=fable,building=opus,…`, `--ci` / `--no-ci`, `--dry-run`, `--force` |
 | `status` (`st`) | Terminal board: station, task progress, who it's waiting on, next command. | `--json` |
 | `new "<title>"` | Open a feature. Prompts for anything missing. | `-t/--type fix\|feature\|epic`, `--owner <name>`, `--parent <id>` |
-| `approve <id> <stage>` | Record a human approval for `spec`, `design` or `plan`. | `--by <name>` (defaults to `git config user.name`) |
+| `approve <id> <stage>` | Record a human approval for `spec`, `design`, `plan`, or `sensitive` (a change to [sensitive paths](concepts.md#review), tied to the current commit). | `--by <name>` (defaults to `git config user.name`) |
 | `move <id> <station>` | Move a feature to a station (`spec … done`). | `--note "<why>"` |
 | `watch` (`top`) | Live view of the line in the terminal: tracks, models, tasks, events. Keys: `↑↓` select, `⏎` open the station, `a` approve, `u` dashboard, `s` shipped, `e` hide/show events, `m` mute, `q` quit. | `--shipped`, `--once`, `--no-intro`, `-q/--quiet` |
 | `ui` (`dashboard`) | Local web dashboard on `127.0.0.1:4545`. | `--port <n>`, `--no-open`, `-q/--quiet` |
