@@ -35,3 +35,6 @@ The `npx buildline ui` process was stopped. Start it again.
 
 **Is anything sent anywhere?**
 The CLI and dashboard are local-only and make no network calls. Your AI agent talks to its provider as usual.
+
+**The verifier didn't use Claude in Chrome.**
+Chrome has to be connected in that Claude Code session: run `/chrome` and choose *Enabled by default*, or start Claude with `claude --chrome`. When it isn't connected, the verifier falls back to a Playwright MCP, then to `npx playwright`, and its report says which it used. If you edited `.claude/agents/buildline-verifier.md` before 0.9.1, run `npx buildline@latest update --force` to get the browser tools.

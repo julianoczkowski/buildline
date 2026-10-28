@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- **Validators can use Claude in Chrome.** The verifier and design reviewer had a tool list that left out every browser tool, so they couldn't reach Chrome even when it was connected. They now get Claude in Chrome first, then a Playwright MCP or the app's built-in browser, then Playwright from the command line, and say in the report which one they used. UI scenarios they couldn't see are `BLOCKED`, never passed.
+- The design reviewer can open the running UI and take its own screenshots of states nobody captured.
+- Run `npx buildline@latest update`. If you edited `.claude/agents/buildline-verifier.md` or `buildline-design-reviewer.md`, `update --force` replaces them.
+
 ## 0.9.0 · 2026-10-27
 Review, modelled on [how the Claude Code team reviews agent-written code](https://claude.dev/blog/solving-code-review-at-anthropic/):
 - **`REVIEW.md`.** A starter is added at the repo root (only if you don't have one) for code owners to say what failure looks like, what to always flag, what to skip and how to report. The reviewer follows it, and so does Claude Code's own Code Review.

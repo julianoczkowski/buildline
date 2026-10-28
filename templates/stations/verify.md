@@ -18,7 +18,7 @@ Don't pass it your build notes or your opinion of the code: the point is a fresh
 
 1. Runs `node .buildline/bin/gates.mjs`. Any red gate is a fail.
 2. For each acceptance scenario, sets up the *Given*, performs the *When*, and observes the *Then* the way a user or client would:
-   - **UI:** run the app; use browser automation (Playwright or browser tools) to click through; take screenshots of key states.
+   - **UI:** run the app and click through it in a real browser: Claude in Chrome first, then a Playwright browser tool, then Playwright from the command line (`npx playwright test` or a short script). Take screenshots of key states. The verifier's *Browser checks* section has the details.
    - **API:** real HTTP requests against the running service; check status codes and bodies.
    - **CLI / library:** run the command or a small script and check output.
    - Prefer an existing automated end-to-end test that encodes the scenario; run it and confirm it actually asserts the *Then*.

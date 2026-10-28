@@ -28,7 +28,7 @@ Pick the first task with `"passes": false`.
 1. If the task adds behaviour, **write the failing test first** and run it to see it fail for the right reason.
 2. Implement the smallest change that makes it pass. Follow the conventions in `.buildline/context/architecture.md` and reuse existing components and utilities before making new ones.
 3. Run the task's `verify` step **and** the gates. Read the output; don't assume.
-4. For UI work, run the app and look at it (a screenshot via the browser tools if available). Check the states listed in the design.
+4. For UI work, run the app and look at it: Claude in Chrome if it's connected, otherwise a Playwright browser tool or `npx playwright`. Take a screenshot and check the states listed in the design.
 5. Only when everything above is green, record it: `node .buildline/bin/feature.mjs task <id> T2 pass --note "<what you ran and what you saw>"`.
 6. Commit with a clear message, e.g. `feat(saved-carts): add model and migration [004/T1]`.
 

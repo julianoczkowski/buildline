@@ -26,7 +26,7 @@ Each station is a markdown playbook in `.buildline/stations/`. In Claude Code ea
 
 **Build** starts every session the same way (git log, progress, tasks, spec, gates on the baseline), works one task at a time, and ends every session with a progress entry. It stops after two genuinely different failed attempts instead of thrashing.
 
-**Verify** delegates to the `buildline-verifier` subagent with *only* the spec, so the check is independent. It runs gates and exercises every acceptance scenario the way a user or client would (browser automation for UI, real HTTP for APIs). Failures become new tasks and increment `metrics.reworks`.
+**Verify** delegates to the `buildline-verifier` subagent with *only* the spec, so the check is independent. It runs gates and exercises every acceptance scenario the way a user or client would (a real browser for UI, real HTTP for APIs). For the browser it uses Claude in Chrome when it's connected, then a Playwright MCP, then Playwright from the command line, and says which one it used. To make Chrome available in every Claude Code session, run `/chrome` and choose *Enabled by default* (or start Claude with `claude --chrome`). Failures become new tasks and increment `metrics.reworks`.
 
 **Review** uses the `buildline-reviewer` subagent (and `/code-review` in Claude Code) for spec fit, correctness, security, tests and maintainability, guided by your `REVIEW.md`. The `buildline-finding-checker` subagent then confirms each finding from the code before it becomes rework, and pre-existing bugs are noted instead of fixed. Risky diffs get a security pass. After three rounds back to build, a person decides how to go on. It writes a human review packet that becomes the PR description. [How review works →](concepts.md#review)
 

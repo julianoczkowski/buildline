@@ -183,6 +183,11 @@ test('models: per-station routing reaches skills, subagents and launch commands'
   const plain = tmp();
   install(plain);
   for (const f of fs.readdirSync(path.join(plain, '.claude/agents'))) assert.match(read(plain, `.claude/agents/${f}`), /^model: inherit$/m, f);
+  // Validators can reach a real browser: Claude in Chrome first, Playwright as the fallback.
+  for (const f of ['buildline-verifier.md', 'buildline-design-reviewer.md']) {
+    const tools = read(plain, `.claude/agents/${f}`).match(/^tools: (.*)$/m)[1];
+    for (const t of ['mcp__claude-in-chrome__*', 'mcp__plugin_playwright_playwright__*', 'mcp__playwright__*', 'ToolSearch']) assert.ok(tools.includes(t), `${f} lacks ${t}`);
+  }
 
   assert.deepEqual(parseModel('gemini'), { cli: 'gemini', model: null });
   assert.deepEqual(parseModel('inherit'), { cli: 'claude', model: null });
