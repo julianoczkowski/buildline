@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1 · 2026-10-28
 - **Validators can use Claude in Chrome.** The verifier and design reviewer had a tool list that left out every browser tool, so they couldn't reach Chrome even when it was connected. They now get Claude in Chrome first, then a Playwright MCP or the app's built-in browser, then Playwright from the command line, and say in the report which one they used. UI scenarios they couldn't see are `BLOCKED`, never passed.
 - The design reviewer can open the running UI and take its own screenshots of states nobody captured.
 - Run `npx buildline@latest update`. If you edited `.claude/agents/buildline-verifier.md` or `buildline-design-reviewer.md`, `update --force` replaces them.
