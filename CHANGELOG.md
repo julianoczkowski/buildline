@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 · 2026-10-31
 - **Dropped: a status for features that won't ship.** `feature.mjs drop <id> "<why>" [--by <name>] [--branch <name>]` (or `npx buildline drop`) records the decision, who made it and when, and where any unshipped work lives. It clears a blocker, so a decided-not-to feature no longer shows as waiting on someone forever, and it's never counted as shipped.
 - Status, `watch` and the dashboard keep dropped features off the line and list them in a collapsed **Dropped** group with the reason. Status counts them separately ("2 dropped (1 this month)"). No chime, no live sessions.
 - `reopen <id> <station>` puts one back on the line, with approvals and tasks as they were. `move` won't start from `dropped`, even with `--force`.
