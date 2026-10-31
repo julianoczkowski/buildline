@@ -3,9 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { render, templatesDir } from './render.js';
-import { moveBlocker, sensitiveBlocker, approval, reviewConfig } from '../templates/bin/feature.mjs';
+import { moveBlocker, sensitiveBlocker, approval, reviewConfig, DROPPED, isResolved, epicSummary, epicNote, dropData, reopenData } from '../templates/bin/feature.mjs';
 
-export { moveBlocker, sensitiveBlocker, reviewConfig };
+export { moveBlocker, sensitiveBlocker, reviewConfig, DROPPED, isResolved, epicSummary, epicNote };
 
 export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 'review', 'ship', 'done'];
 export const TYPES = ['fix', 'feature', 'epic'];
@@ -104,11 +104,27 @@ export function createFeature(root, { title, type = 'feature', owner = null, par
 }
 
 export function setStatus(feature, status, note) {
+  if (feature.status === DROPPED) throw new Error(`${feature.id} is dropped. Reopen it at a station instead.`);
   if (!STATIONS.includes(status)) throw new Error(`Status must be one of: ${STATIONS.join(', ')}`);
   feature.status = status;
   if (status === 'done') feature.metrics = { ...feature.metrics, shippedAt: now() };
   feature.history = [...(feature.history || []), { at: now(), station: status, note: note || `Moved to ${status}` }];
   return saveFeature(feature);
+}
+
+export const dropFeature = (feature, opts) => saveFeature(dropData(feature, opts));
+export const reopenFeature = (feature, station, note) => saveFeature(reopenData(feature, station, note));
+
+/** Shipped and dropped counts, with how many were dropped since the start of this month. */
+export function outcomes(features, at = new Date()) {
+  const month = new Date(at.getFullYear(), at.getMonth(), 1);
+  const dropped = features.filter((f) => f.status === DROPPED);
+  return {
+    active: features.filter((f) => !isResolved(f) && f.status !== 'unknown').length,
+    shipped: features.filter((f) => f.status === 'done').length,
+    dropped: dropped.length,
+    droppedThisMonth: dropped.filter((f) => new Date(f.dropped?.at || 0) >= month).length,
+  };
 }
 
 export function approve(feature, stage, by) {
@@ -119,8 +135,18 @@ export function approve(feature, stage, by) {
   return saveFeature(feature);
 }
 
-/** What a feature is waiting on, in plain words, for status displays. */
-export function nextAction(feature, autonomy = 2) {
+/**
+ * What a feature is waiting on, in plain words, for status displays. Pass `all`
+ * (every feature) so an epic can say how far its children are.
+ */
+export function nextAction(feature, autonomy = 2, all = null) {
+  if (feature.status === DROPPED) return { who: null, text: `dropped: ${feature.dropped?.reason || 'no reason recorded'}` };
+  if (feature.type === 'epic' && all && feature.status !== 'done') {
+    const sum = epicSummary(feature, all);
+    const kids = sum.shipped.length + sum.dropped.length + sum.open.length;
+    if (kids && !sum.open.length) return { who: 'pm', text: `nothing left in flight (${epicNote(sum)}): close the epic`, cmd: `buildline move ${feature.id} done` };
+    if (kids && !feature.blocked) return { who: null, text: `${kids - sum.open.length}/${kids} child features resolved` };
+  }
   const a = feature.approvals || {};
   const tasks = feature.tasks || [];
   const passing = tasks.filter((t) => t.passes).length;
@@ -217,13 +243,13 @@ export function readActivity(root, limit = 200) {
  */
 export function liveState(feature, sessions, at = Date.now()) {
   // A finished feature has nothing live, even if an old session is still tied to it.
-  const mine = feature.status === 'done' ? [] : sessions.filter((s) => s.feature === feature.id);
+  const mine = isResolved(feature) ? [] : sessions.filter((s) => s.feature === feature.id);
   const working = mine.filter((s) => s.state === 'working');
   const recent = at - new Date(feature.updated || 0) < 2 * 60e3;
   const waiting = mine.find((s) => s.state === 'waiting');
   return {
     sessions: mine,
-    working: working.length > 0 || (!sessions.tracked && recent && !feature.blocked && feature.status !== 'done'),
+    working: working.length > 0 || (!sessions.tracked && recent && !feature.blocked && !isResolved(feature)),
     waiting: Boolean(waiting),
     // why: 'reply' | 'question' | 'permission', and what the agent said or asked
     waitingFor: waiting ? { why: waiting.waitingFor || 'reply', said: waiting.said || null, for: waiting.for } : null,
@@ -235,6 +261,7 @@ export function liveState(feature, sessions, at = Date.now()) {
 /** What the chime is for: 'waiting' when a feature needs a person, 'done' once it ships, else null. */
 export function attention(feature, live) {
   if (feature.status === 'done') return 'done';
+  if (feature.status === DROPPED) return null;
   return feature.blocked || live?.waiting ? 'waiting' : null;
 }
 

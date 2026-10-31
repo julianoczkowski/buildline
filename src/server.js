@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import pc from 'picocolors';
-import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, readSessions, liveState } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, reopenFeature, nextAction, readSessions, liveState } from './features.js';
 import { AUTONOMY, VERSION } from './install.js';
 import { goalFor } from './cli.js';
 
@@ -37,9 +37,10 @@ function state(root, opts = {}) {
   const config = JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
   if (opts.sound === false) config.sound = false;
   const sessions = readSessions(root);
-  const features = listFeatures(root).map(({ path: _p, ...f }) => ({
+  const all = listFeatures(root);
+  const features = all.map(({ path: _p, ...f }) => ({
     ...f,
-    next: nextAction({ ...f, path: _p }, config.autonomy),
+    next: nextAction({ ...f, path: _p }, config.autonomy, all),
     live: liveState(f, sessions),
     goal: goalFor(f),
   }));
@@ -113,12 +114,13 @@ export function serve(root, opts = {}) {
         return send(200, { id: f.id, dir: f.dir });
       }
 
-      const m = /^\/api\/features\/([^/]+)\/(approve|move)$/.exec(url.pathname);
+      const m = /^\/api\/features\/([^/]+)\/(approve|move|reopen)$/.exec(url.pathname);
       if (req.method === 'POST' && m) {
         const f = findFeature(root, decodeURIComponent(m[1]));
         if (!f) return send(404, { error: 'No such feature' });
         const body = JSON.parse(await readBody(req));
         if (m[2] === 'approve') approve(f, body.stage, body.by);
+        else if (m[2] === 'reopen') reopenFeature(f, body.status, body.note);
         else setStatus(f, body.status, body.note);
         return send(200, { ok: true });
       }

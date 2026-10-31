@@ -38,6 +38,16 @@ node .buildline/bin/feature.mjs block 004 "Which currency should prices use?"
 
 The script stamps the real time, keeps the history the board shows, counts reworks, and refuses a move that skips an approval your autonomy level requires. A Claude Code hook stops agents from editing `feature.json` by hand. When an agent needs a decision from you, it marks the feature **blocked** with the question before asking, so the board shows who is waiting on whom.
 
+### Dropped: decided not to do it
+
+`blocked` means someone owes the feature an answer. When the answer is "we're not doing this", drop it instead:
+
+```bash
+node .buildline/bin/feature.mjs drop 038 "Measured: little worth fixing" --by "Maya" --branch feat/038-api-times
+```
+
+`feature.json` gets `"status": "dropped"` and `"dropped": { "reason", "by", "at", "branch" }`, and any blocker is cleared. A dropped feature leaves the line: status, `watch` and the dashboard list it in a collapsed **Dropped** group with the reason, never as waiting on a person or in progress, and it's never counted as shipped (status shows "2 dropped (1 this month)" separately). `move` refuses to start from `dropped`, even with `--force`; `reopen 038 build` puts it back, with approvals and tasks as they were. Agents drop a feature only when a person says so.
+
 ## Live sessions
 
 Buildline's Claude Code hooks note which session is working on which feature and what it's doing right now, in `.buildline/sessions/` (git-ignored). `npx buildline watch` and the dashboard use them:
@@ -69,7 +79,7 @@ While `watch` or the dashboard is open, Buildline plays one short chime when a f
 
 - **fix**: bug or small, well-understood change. Skips spec, design and plan; still needs a failing reproduction first and still gets verified.
 - **feature**: the full pipeline.
-- **epic**: specced, then split into child features (`--parent`).
+- **epic**: specced, then split into child features (`--parent`). A child counts as resolved once it's done or dropped. When none is left in flight, status says so and `move <epic> done` closes it without its own approvals (its children had theirs), recording what shipped and what was dropped. While a child is still open, the epic can't be closed.
 
 ## Stations
 

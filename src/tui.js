@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import pc from 'picocolors';
-import { listFeatures, nextAction, approve, readSessions, readActivity, liveState, attention, newAttention } from './features.js';
+import { listFeatures, nextAction, approve, readSessions, readActivity, liveState, attention, newAttention, isResolved, DROPPED } from './features.js';
 import { chime, soundOn } from './sound.js';
 import { modelFor, describeModel } from './models.js';
 import { AUTONOMY, VERSION } from './install.js';
@@ -108,9 +108,11 @@ function loadState(root, showShipped) {
   const config = JSON.parse(fs.readFileSync(path.join(root, '.buildline', 'buildline.json'), 'utf8'));
   const all = listFeatures(root);
   const sessions = readSessions(root);
+  // Dropped features stay off the line; `s` shows them in a group of their own after the rest.
   const features = all
-    .filter((f) => showShipped || f.status !== 'done')
-    .map((f) => ({ ...f, next: nextAction(f, config.autonomy), live: liveState(f, sessions) }));
+    .filter((f) => showShipped || !isResolved(f))
+    .sort((a, b) => (a.status === DROPPED) - (b.status === DROPPED))
+    .map((f) => ({ ...f, next: nextAction(f, config.autonomy, all), live: liveState(f, sessions) }));
   // Station history plus the live tool feed from running sessions, in time order.
   const tools = readActivity(root).map((a) => ({ at: a.at, id: a.feature, station: a.tool, note: a.detail, tool: true, key: `t|${a.at}|${a.session}|${a.detail}` }));
   const events = all
@@ -130,6 +132,7 @@ const ago = (ms) => (ms < 60e3 ? `${Math.max(1, Math.round(ms / 1000))}s` : ms <
 
 /** The NEXT UP cell: who or what the feature is waiting on right now. */
 function rowStatus(f, t) {
+  if (f.status === DROPPED) return ['DROPPED', C.faint];
   if (f.blocked) return ['BLOCKED', C.red];
   if (f.live.waiting) return ['NEEDS YOU', t % 12 < 8 ? C.red : C.faint];
   if (f.live.working) {
@@ -211,11 +214,12 @@ function render(st, ui, W, H) {
     screen[Math.floor(H / 2)].put(Math.max(0, Math.floor((W - msg.length) / 2)), msg, C.amber);
     return screen;
   }
-  const active = st.all.filter((f) => f.status !== 'done');
-  const shipped = st.all.length - active.length;
+  const active = st.all.filter((f) => !isResolved(f));
+  const shipped = st.all.filter((f) => f.status === 'done').length;
+  const dropped = st.all.filter((f) => f.status === DROPPED).length;
   const tasks = active.flatMap((f) => f.tasks || []);
   const busy = (f) => f.live.working || f.live.background.length;
-  const waiting = features.filter((f) => f.status !== 'done' && (f.live.waiting || (!busy(f) && ['pm', 'designer', 'eng', 'human'].includes(f.next.who)))).length;
+  const waiting = features.filter((f) => !isResolved(f) && (f.live.waiting || (!busy(f) && ['pm', 'designer', 'eng', 'human'].includes(f.next.who)))).length;
   const sessionsWorking = st.sessions.filter((x) => x.state !== 'waiting').length;
 
   // header
@@ -232,6 +236,7 @@ function render(st, ui, W, H) {
     right(0, [[config.project || path.basename(ui.root), C.bold], ['  ·  ', C.faint], [AUTONOMY[config.autonomy]?.label || `L${config.autonomy}`, C.amber], ['  ·  ', C.faint], [live, C.green]]);
     right(1, [
       ['ACTIVE ', C.muted], [String(active.length), C.bold], ['   SHIPPED ', C.muted], [String(shipped), C.green],
+      ...(dropped ? [['   DROPPED ', C.muted], [String(dropped), C.faint]] : []),
       ['   SESSIONS ', C.muted], [String(sessionsWorking), sessionsWorking ? C.amberBold : C.bold],
       ['   TASKS ', C.muted], [`${tasks.filter((x) => x.passes).length}/${tasks.length}`, C.bold],
       ['   WAITING ON PEOPLE ', C.muted], [String(waiting), waiting ? WHO.pm.color : C.bold],
@@ -241,7 +246,7 @@ function render(st, ui, W, H) {
     let x = screen[0].put(1, ' BUILDLINE ', pc.isColorSupported ? (s) => `\x1b[43m\x1b[30m${s}\x1b[39m\x1b[49m` : null);
     x = screen[0].put(x + 1, config.project || '', C.bold);
     const liveX = W - 1 - [...live].length;
-    screen[0].put(x, `  ${active.length} active · ${shipped} shipped · ${waiting} waiting`, C.muted, liveX - 1);
+    screen[0].put(x, `  ${active.length} active · ${shipped} shipped${dropped ? ` · ${dropped} dropped` : ''} · ${waiting} waiting`, C.muted, liveX - 1);
     screen[0].put(liveX, live, C.green);
   }
   const top = tall ? 4 : 2;
@@ -313,7 +318,7 @@ function render(st, ui, W, H) {
   }
 
   // footer
-  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped'], ['e', ui.events === false ? 'events' : 'hide events'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
+  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped & dropped'], ['e', ui.events === false ? 'events' : 'hide events'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
   let fx = 1;
   const foot = screen[H - 1];
   if (ui.message && ui.messageUntil > Date.now()) fx = foot.put(1, ` ${ui.message} `, C.flash);
@@ -343,12 +348,18 @@ function drawInspector(screen, st, f, x, y, w, h) {
     return a ? [[`${s} ✔ ${a.by}  `, C.green]] : [[`${s} ·  `, C.faint]];
   });
   add(['approvals ', C.muted], ...appr.flat());
-  if (f.blocked) {
+  const why = f.status === DROPPED ? f.dropped?.reason || 'no reason recorded' : f.blocked;
+  if (why) {
     const width = Math.max(10, w - 15);
-    const words = String(f.blocked).split(/\s+/);
+    const words = String(why).split(/\s+/);
     const lines = [''];
     for (const word of words) (lines.at(-1) + ' ' + word).trim().length > width ? lines.push(word) : (lines[lines.length - 1] = (lines.at(-1) + ' ' + word).trim());
-    lines.slice(0, 4).forEach((l, i) => add([i ? '           ' : '✖ blocked  ', C.red], [l, C.bold]));
+    const tag = f.status === DROPPED ? ['✕ dropped  ', C.muted] : ['✖ blocked  ', C.red];
+    lines.slice(0, 4).forEach((l, i) => add([i ? '           ' : tag[0], tag[1]], [l, C.bold]));
+    if (f.status === DROPPED) {
+      const d = f.dropped || {};
+      add(['           ', null], [[d.by && `by ${d.by}`, d.at && timeLabel(d.at).trim(), d.branch].filter(Boolean).join(' · '), C.muted]);
+    }
   }
   for (const ses of f.live?.sessions || []) {
     // "● c41c8a97 opus-5-5  working 4m · up 1h12m", then what it's doing or waiting for.
@@ -387,9 +398,10 @@ function drawInspector(screen, st, f, x, y, w, h) {
   }
   add();
   const who = WHO[f.next.who];
-  if (f.blocked) add(['next ', C.muted], ['answer the question in the session that asked it', C.text]);
+  if (f.status === DROPPED) add(['next ', C.muted], ['nothing: to pick it up again, ', C.text], [`buildline reopen ${f.id} <station>`, C.amber]);
+  else if (f.blocked) add(['next ', C.muted], ['answer the question in the session that asked it', C.text]);
   else add(['next ', C.muted], [who ? who.label + ' ' : '', who?.color || C.text], [f.next.text, C.text]);
-  if (f.next.cmd) add(['❯ ', C.amberBold], [f.next.cmd, C.amber]);
+  if (f.next.cmd && f.status !== DROPPED) add(['❯ ', C.amberBold], [f.next.cmd, C.amber]);
   const room = h - 2 - rows.length - 2;
   const journey = (f.history || []).slice(-room);
   if (room > 0 && journey.length) {
@@ -434,11 +446,11 @@ export function snapshot(root, { width = 110, shipped = false } = {}) {
 
 async function boot(out, st, root) {
   const ok = pc.isColorSupported ? `[  ${pc.green('OK')}  ]` : '[  OK  ]';
-  const active = st.all.filter((f) => f.status !== 'done').length;
+  const active = st.all.filter((f) => !isResolved(f)).length;
   const routed = TRACK.filter((s) => st.config.models?.[s]).map((s) => `${s} → ${st.config.models[s]}`);
   const lines = [
     `Mounted ${path.join(path.basename(root), '.buildline')}`,
-    `Loaded ${st.all.length} feature${st.all.length === 1 ? '' : 's'} (${active} active, ${st.all.length - active} shipped)`,
+    `Loaded ${st.all.length} feature${st.all.length === 1 ? '' : 's'} (${active} active, ${st.all.filter((f) => f.status === 'done').length} shipped${st.all.some((f) => f.status === DROPPED) ? `, ${st.all.filter((f) => f.status === DROPPED).length} dropped` : ''})`,
     routed.length ? `Routed models: ${routed.slice(0, 4).join(', ')}${routed.length > 4 ? ', …' : ''}` : 'Routed models: every station on the session model',
     `Armed gates: ${(st.config.gates || []).map((g) => g.name).join(', ') || 'none'}`,
     'Started the line.',
@@ -522,6 +534,7 @@ export async function watch(root, opts = {}) {
       else if (k === 'u') return done({ action: 'ui' });
       else if ((k === '\r' || k === '\n') && f) {
         if (f.status === 'done') say(`${f.id} has shipped`);
+        else if (f.status === DROPPED) say(`${f.id} is dropped: buildline reopen ${f.id} <station>`);
         else return done({ action: 'step', station: TRACK.includes(f.status) ? f.status : 'buildline', id: f.id });
       } else if (k === 'a' && f) {
         const stage = f.next.cmd?.match(/^buildline approve \S+ (\w+)$/)?.[1];

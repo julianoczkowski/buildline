@@ -14,6 +14,8 @@
 //   node .buildline/bin/feature.mjs block <id> "<question or reason>"
 //   node .buildline/bin/feature.mjs unblock <id> [--note "…"]
 //   node .buildline/bin/feature.mjs approve <id> <spec|design|plan|sensitive> --by "<name>"   (only when that person said yes)
+//   node .buildline/bin/feature.mjs drop <id> "<why>" [--by "<name>"] [--branch <name>]         (only when a person said so)
+//   node .buildline/bin/feature.mjs reopen <id> <station> [--note "…"]
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -33,11 +35,66 @@ export function requiredApproval(station, autonomy, type) {
   return null;
 }
 
-/** Why moving `feature` to `to` isn't allowed yet, or null. Moving back is always allowed. */
-export function moveBlocker(feature, to, autonomy) {
+// ---- dropped: decided not to do it ------------------------------------------------
+// A terminal status beside done. It isn't a station: nothing moves into or out of it
+// except through drop and reopen, so it is always a deliberate decision by a person.
+
+export const DROPPED = 'dropped';
+/** Done or dropped: nothing left in flight. */
+export const isResolved = (f) => f?.status === 'done' || f?.status === DROPPED;
+const pad = (id) => String(id ?? '').padStart(3, '0');
+/** The features whose parent is `epic`, from a list of feature data. */
+export const childrenOf = (epic, all) => all.filter((f) => f.parent != null && f.id !== epic.id && pad(f.parent) === pad(epic.id));
+
+/** What an epic's children came to: { shipped, dropped, open } lists of features. */
+export function epicSummary(epic, all) {
+  const kids = childrenOf(epic, all);
+  return { shipped: kids.filter((f) => f.status === 'done'), dropped: kids.filter((f) => f.status === DROPPED), open: kids.filter((f) => !isResolved(f)) };
+}
+const ids = (list) => list.map((f) => f.id).join(', ');
+export const epicNote = ({ shipped, dropped }) => [shipped.length && `shipped ${ids(shipped)}`, dropped.length && `dropped ${ids(dropped)}`].filter(Boolean).join('; ') || 'no child features';
+
+/** Mark feature data dropped. Shared by the script, the CLI and the dashboard. */
+export function dropData(data, { reason, by = null, branch = null } = {}) {
+  if (!String(reason ?? '').trim()) throw new Error('Say why it is dropped: drop <id> "<why>". Only drop a feature when a person decided so.');
+  if (data.status === DROPPED) throw new Error(`${data.id} is already dropped (${data.dropped?.reason || 'no reason recorded'}).`);
+  if (data.status === 'done') throw new Error(`${data.id} has shipped. It can't be dropped.`);
+  const from = data.status;
+  data.status = DROPPED;
+  data.dropped = { reason: String(reason).trim(), by: by || null, at: now(), branch: branch || null };
+  data.blocked = null;
+  data.awaiting = null;
+  record(data, DROPPED, `Dropped at ${from}${by ? ` by ${by}` : ''}: ${data.dropped.reason}${branch ? ` (work on ${branch})` : ''}`);
+  return data;
+}
+
+/** Put dropped feature data back on the line at `station`. Approvals and tasks stay as they were. */
+export function reopenData(data, station, note) {
+  if (data.status !== DROPPED) throw new Error(`${data.id} isn't dropped (it's at ${data.status}). Use move to change station.`);
+  const usable = STATIONS.filter((s) => !['new', 'done'].includes(s));
+  if (!usable.includes(station)) throw new Error(`Reopen at one of: ${usable.join(', ')}.`);
+  const was = data.dropped?.reason;
+  data.status = station;
+  data.dropped = null;
+  record(data, station, note ? `Reopened at ${station}: ${note}` : `Reopened at ${station}${was ? ` (was dropped: ${was})` : ''}`);
+  return data;
+}
+
+/**
+ * Why moving `feature` to `to` isn't allowed yet, or null. Moving back is always allowed.
+ * `all` (every feature's data) lets an epic close once its children are done or dropped.
+ */
+export function moveBlocker(feature, to, autonomy, all = null) {
+  if (feature.status === DROPPED) return `${feature.id} is dropped (${feature.dropped?.reason || 'no reason recorded'}). To work on it again, run node .buildline/bin/feature.mjs reopen ${feature.id} <station>.`;
+  if (to === DROPPED) return `To drop ${feature.id}, run node .buildline/bin/feature.mjs drop ${feature.id} "<why>", and only when a person decided so.`;
   const from = STATIONS.indexOf(feature.status);
   const target = STATIONS.indexOf(to);
   if (target < 0) return `Unknown station "${to}". Use one of: ${STATIONS.join(', ')}.`;
+  // An epic is an index: it closes when nothing under it is left in flight. Its children carry the approvals.
+  if (feature.type === 'epic' && to === 'done' && all) {
+    const { open } = epicSummary(feature, all);
+    return open.length ? `${feature.id} still has child features in flight: ${open.map((f) => `${f.id} (${f.status})`).join(', ')}. An epic closes once each child is done or dropped.` : null;
+  }
   for (let i = Math.max(from, 0); i < target; i++) {
     const stage = requiredApproval(STATIONS[i], autonomy, feature.type);
     if (stage && !feature.approvals?.[stage]) {
@@ -139,6 +196,19 @@ export function load(root, ref) {
   return { dir, data: JSON.parse(fs.readFileSync(path.join(dir, 'feature.json'), 'utf8')) };
 }
 
+/** Every feature's data, for epic checks. */
+export function loadAll(root) {
+  const dir = featuresDir(root);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).flatMap((d) => {
+    try {
+      return /^\d{3,}-/.test(d) ? [JSON.parse(fs.readFileSync(path.join(dir, d, 'feature.json'), 'utf8'))] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export function save({ dir, data }) {
   data.updated = now();
   fs.writeFileSync(path.join(dir, 'feature.json'), JSON.stringify(data, null, 2) + '\n');
@@ -156,7 +226,8 @@ const record = (data, station, note) => (data.history = [...(data.history || [])
 
 export function move(root, ref, to, { note, force = false } = {}) {
   const f = load(root, ref);
-  const blocker = force ? null : moveBlocker(f.data, to, autonomyOf(root));
+  // Even --force can't move a dropped feature: reopening it is a decision of its own.
+  const blocker = f.data.status === DROPPED || to === DROPPED || !force ? moveBlocker(f.data, to, autonomyOf(root), f.data.type === 'epic' ? loadAll(root) : null) : null;
   if (blocker) throw new Error(blocker);
   const config = configOf(root);
   const sensitive = force ? null : sensitiveBlocker(root, f.data, to, config);
@@ -177,7 +248,8 @@ export function move(root, ref, to, { note, force = false } = {}) {
   f.data.status = to;
   f.data.blocked = null;
   f.data.awaiting = null;
-  record(f.data, to, note || `Moved from ${from} to ${to}`);
+  const closing = f.data.type === 'epic' && to === 'done' ? `Closed: ${epicNote(epicSummary(f.data, loadAll(root)))}` : null;
+  record(f.data, to, [note || `Moved from ${from} to ${to}`, closing].filter(Boolean).join('. '));
   const rounds = f.data.metrics?.reviewRounds || 0;
   const { maxRounds } = reviewConfig(config);
   if (from === 'review' && to === 'build' && maxRounds && rounds >= maxRounds) {
@@ -234,6 +306,7 @@ export function log(root, ref, note) {
 export function block(root, ref, reason) {
   if (!reason) throw new Error('Say what you need: block <id> "<question or reason>".');
   const f = load(root, ref);
+  if (f.data.status === DROPPED) throw new Error(`${f.data.id} is dropped, so nobody owes it an answer. Reopen it first if work is starting again.`);
   f.data.blocked = reason;
   record(f.data, f.data.status, `Blocked: ${reason}`);
   save(f);
@@ -245,6 +318,20 @@ export function unblock(root, ref, note) {
   f.data.awaiting = null;
   record(f.data, f.data.status, note ? `Unblocked: ${note}` : 'Unblocked');
   save(f);
+}
+
+export function drop(root, ref, reason, { by, branch } = {}) {
+  const f = load(root, ref);
+  dropData(f.data, { reason, by: by || git(root, ['config', 'user.name']) || null, branch });
+  save(f);
+  return f.data;
+}
+
+export function reopen(root, ref, station, note) {
+  const f = load(root, ref);
+  reopenData(f.data, station, note);
+  save(f);
+  return f.data;
 }
 
 const slugify = (title) =>
@@ -295,6 +382,7 @@ function parse(argv) {
 
 function summary(d) {
   const tasks = d.tasks || [];
+  if (d.status === DROPPED) return `${d.id} ${d.title} · dropped: ${d.dropped?.reason || ''}`;
   return `${d.id} ${d.title} · ${d.status}${d.blocked ? ` · BLOCKED: ${d.blocked}` : ''} · ${tasks.filter((t) => t.passes).length}/${tasks.length} tasks`;
 }
 
@@ -329,11 +417,18 @@ function main(argv) {
     case 'block':
       block(root, ref, rest.join(' '));
       return console.log(`✔ ${ref} marked blocked. Tell the person what you need; run unblock when they answer.`);
+    case 'drop': {
+      const by = opts.by === true ? null : opts.by;
+      const branch = opts.branch === true ? null : opts.branch;
+      return console.log('✔ ' + summary(drop(root, ref, rest.join(' '), { by, branch })));
+    }
+    case 'reopen':
+      return console.log('✔ ' + summary(reopen(root, ref, rest[0], opts.note === true ? null : opts.note)));
     case 'unblock':
       unblock(root, ref, opts.note);
       return console.log(`✔ ${ref} unblocked`);
     default:
-      console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 17).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1).filter((l, i, a) => a.slice(0, i + 1).every((x) => x.startsWith('//'))).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
       if (cmd) process.exitCode = 1;
   }
 }

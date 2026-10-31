@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+- **Dropped: a status for features that won't ship.** `feature.mjs drop <id> "<why>" [--by <name>] [--branch <name>]` (or `npx buildline drop`) records the decision, who made it and when, and where any unshipped work lives. It clears a blocker, so a decided-not-to feature no longer shows as waiting on someone forever, and it's never counted as shipped.
+- Status, `watch` and the dashboard keep dropped features off the line and list them in a collapsed **Dropped** group with the reason. Status counts them separately ("2 dropped (1 this month)"). No chime, no live sessions.
+- `reopen <id> <station>` puts one back on the line, with approvals and tasks as they were. `move` won't start from `dropped`, even with `--force`.
+- **Epics close when nothing is in flight.** A child that's done or dropped counts as resolved; status tells you when an epic is ready, and `move <epic> done` records what shipped and what was dropped. An epic with open children can't be closed.
+- Agents drop a feature only when a person says so in the conversation (a new line in the `AGENTS.md` block).
+- To convert a feature parked as "blocked: Dropped …", run `drop` on it by hand. Nothing is rewritten automatically. Run `npx buildline@latest update` to get the new script, hooks and rules.
+
 ## 0.9.1 · 2026-10-28
 - **Validators can use Claude in Chrome.** The verifier and design reviewer had a tool list that left out every browser tool, so they couldn't reach Chrome even when it was connected. They now get Claude in Chrome first, then a Playwright MCP or the app's built-in browser, then Playwright from the command line, and say in the report which one they used. UI scenarios they couldn't see are `BLOCKED`, never passed.
 - The design reviewer can open the running UI and take its own screenshots of states nobody captured.

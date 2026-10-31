@@ -88,6 +88,14 @@ main { padding: 16px 20px 40px; }
 .progress > i { display: block; height: 100%; background: var(--green); }
 .approvals { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
 .empty { color: var(--ink-3); font-size: 13px; padding: 8px 4px; }
+details.dropped { margin-top: 14px; background: var(--panel-2); border-radius: 12px; padding: 10px 14px; }
+details.dropped summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+details.dropped ul { list-style: none; margin: 8px 0 0; padding: 0; }
+details.dropped li button { display: flex; gap: 10px; align-items: baseline; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 4px; border-radius: 8px; color: var(--ink-2); }
+details.dropped li button:hover { background: var(--panel); }
+details.dropped .id { font: 12px var(--mono); color: var(--ink-3); }
+details.dropped .why { color: var(--ink-3); font-size: 13px; }
+.dropped-note { margin: 12px 20px 0; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); color: var(--ink-2); font-size: 13px; }
 .hero { max-width: 560px; margin: 60px auto; text-align: center; color: var(--ink-2); }
 .hero h1 { color: var(--ink); font-size: 22px; }
 
@@ -271,12 +279,15 @@ function renderBoard() {
       <p><button class="btn primary" onclick="newFeature()">+ Start the first feature</button></p>
       <p style="font-size:13px">Developers can also type <code>/buildline-new &lt;idea&gt;</code> in Claude Code.</p></div>`;
   }
+  const dropped = S.features.filter((f) => f.status === 'dropped');
+  // Decided not to do: out of the columns, collapsed below them with the reason.
+  const droppedGroup = dropped.length ? `<details class="dropped"><summary>Dropped (${dropped.length})</summary><ul>${dropped.map((f) => `<li><button class="card-link" data-open="${esc(f.id)}"><span class="id">${esc(f.id)}</span><span>${esc(f.title)}</span><span class="why">${esc(f.dropped?.reason || '')}${f.dropped?.branch ? ` · <code>${esc(f.dropped.branch)}</code>` : ''}</span></button></li>`).join('')}</ul></details>` : '';
   return `<div class="board">${COLUMNS.map(([key, label, owner]) => {
     const items = S.features.filter((f) => f.status === key);
     const model = (S.config.models || {})[key] ?? S.config.models?.default;
     const modelTag = key !== 'done' && model && model !== 'inherit' ? ` · <span class="model" title="Model for this station (buildline models)">${esc(model)}</span>` : '';
     return `<section class="col" aria-label="${label}"><h2><span>${label} <span class="owner">${owner}${modelTag}</span></span><small>${items.length}</small></h2>${items.map(card).join('') || '<div class="empty">—</div>'}</section>`;
-  }).join('')}</div>`;
+  }).join('')}</div>${droppedGroup}`;
 }
 async function renderContext() {
   ctxPath ??= S.context[0]?.path;
@@ -324,14 +335,20 @@ async function renderDrawer() {
   const appr = ['spec', 'design', 'plan', ...(f.awaiting === 'sensitive' || f.approvals?.sensitive ? ['sensitive'] : [])].map((s) => f.approvals?.[s] && !(s === 'sensitive' && f.awaiting === 'sensitive')
     ? `<span class="chip" title="${esc(f.approvals[s].at)}">✓ ${s} · ${esc(f.approvals[s].by)}</span>`
     : `<button class="btn small" onclick="approveStage('${s}')">Approve ${s === 'sensitive' ? 'sensitive paths' : s}</button>`).join('');
+  const isDropped = f.status === 'dropped';
+  const dr = f.dropped || {};
+  const station = isDropped
+    ? `<label>Reopen at <select id="reopenSel"><option value="">—</option>${COLUMNS.filter(([k]) => k !== 'done').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>`
+    : `<label>Station <select id="moveSel">${COLUMNS.map(([k, l]) => `<option value="${k}" ${k === f.status ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   d.innerHTML = `
     <header><div style="min-width:0;flex:1"><div class="top" style="display:flex;gap:6px;align-items:center"><span class="id" style="font:12px var(--mono);color:var(--ink-3)">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span><span class="chip">${esc(f.status)}</span>${f.owner ? `<span class="chip">👤 ${esc(f.owner)}</span>` : ''}</div><h1>${esc(f.title)}</h1></div><button class="btn" onclick="closeDrawer()" aria-label="Close">✕</button></header>
-    <div class="actions">${appr}<span class="spacer"></span>
-      <label>Station <select id="moveSel">${COLUMNS.map(([k, l]) => `<option value="${k}" ${k === f.status ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
-    ${f.next?.cmd ? `<div class="actions"><label>Next</label><span>${esc(f.next.text)}</span><code class="cmd">${esc(f.next.cmd)}</code><button class="btn small" onclick="copy(${esc(JSON.stringify(f.next.cmd))})">Copy</button>${S.config.autonomy >= 3 && ['plan','build','verify','review'].includes(f.status) ? `<button class="btn small" onclick="copy(${esc(JSON.stringify(f.goal))})">Copy /goal</button>` : ''}</div>` : ''}
+    <div class="actions">${isDropped ? '' : appr}<span class="spacer"></span>${station}</div>
+    ${isDropped ? `<div class="dropped-note"><b>Dropped</b>${dr.by ? ` by ${esc(dr.by)}` : ''}${dr.at ? ` on ${esc(dr.at.slice(0, 10))}` : ''}: ${esc(dr.reason || 'no reason recorded')}${dr.branch ? `<br>Unshipped work: <code>${esc(dr.branch)}</code>` : ''}</div>` : ''}
+    ${!isDropped && f.next?.cmd ? `<div class="actions"><label>Next</label><span>${esc(f.next.text)}</span><code class="cmd">${esc(f.next.cmd)}</code><button class="btn small" onclick="copy(${esc(JSON.stringify(f.next.cmd))})">Copy</button>${S.config.autonomy >= 3 && ['plan','build','verify','review'].includes(f.status) ? `<button class="btn small" onclick="copy(${esc(JSON.stringify(f.goal))})">Copy /goal</button>` : ''}</div>` : ''}
     <nav class="tabs" style="margin:12px 20px 0;align-self:flex-start">${['spec', 'tasks', 'progress', 'history'].map((t) => `<button aria-selected="${t === drawerTab}" data-dtab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</nav>
     <div class="body">${body}</div>`;
   d.classList.add('open'); $('#backdrop').classList.add('open');
+  if (isDropped) { $('#reopenSel').onchange = async (e) => { if (!e.target.value) return; await api(`/api/features/${f.id}/reopen`, { method: 'POST', body: JSON.stringify({ status: e.target.value, note: `from dashboard by ${me() || 'someone'}` }) }); toast(`Reopened at ${e.target.value}`); refresh(); }; return; }
   $('#moveSel').onchange = async (e) => { await api(`/api/features/${f.id}/move`, { method: 'POST', body: JSON.stringify({ status: e.target.value, note: `Moved to ${e.target.value} from dashboard by ${me() || 'someone'}` }) }); toast(`Moved to ${e.target.value}`); refresh(); };
 }
 
@@ -359,6 +376,7 @@ $('#backdrop').onclick = closeDrawer;
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !editing) closeDrawer(); });
 document.addEventListener('click', (e) => {
   const c = e.target.closest('.card'); if (c) return openDrawer(c.dataset.id);
+  const o = e.target.closest('[data-open]'); if (o) return openDrawer(o.dataset.open);
   const v = e.target.closest('[data-view]'); if (v) { view = v.dataset.view; render(); }
   const t = e.target.closest('[data-dtab]'); if (t) { drawerTab = t.dataset.dtab; editing = false; renderDrawer(); }
   const x = e.target.closest('[data-ctx]'); if (x) { ctxPath = x.dataset.ctx; ctxEditing = false; render(); }

@@ -14,7 +14,9 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | `new "<title>"` | Open a feature. Prompts for anything missing. | `-t/--type fix\|feature\|epic`, `--owner <name>`, `--parent <id>` |
 | `approve <id> <stage>` | Record a human approval for `spec`, `design`, `plan`, or `sensitive` (a change to [sensitive paths](concepts.md#review), tied to the current commit). | `--by <name>` (defaults to `git config user.name`) |
 | `move <id> <station>` | Move a feature to a station (`spec … done`). | `--note "<why>"` |
-| `watch` (`top`) | Live view of the line in the terminal: tracks, models, tasks, events. Keys: `↑↓` select, `⏎` open the station, `a` approve, `u` dashboard, `s` shipped, `e` hide/show events, `m` mute, `q` quit. | `--shipped`, `--once`, `--no-intro`, `-q/--quiet` |
+| `drop <id> "<why>"` | Record that a feature won't ship. Clears any blocker; the board, status and watch stop counting it. | `--by <name>`, `--branch <name>` |
+| `reopen <id> <station>` | Put a dropped feature back at a station. Approvals and tasks stay; gates still apply going forward. | `--note "<why>"` |
+| `watch` (`top`) | Live view of the line in the terminal: tracks, models, tasks, events. Keys: `↑↓` select, `⏎` open the station, `a` approve, `u` dashboard, `s` shipped and dropped, `e` hide/show events, `m` mute, `q` quit. | `--shipped`, `--once`, `--no-intro`, `-q/--quiet` |
 | `ui` (`dashboard`) | Local web dashboard on `127.0.0.1:4545`. | `--port <n>`, `--no-open`, `-q/--quiet` |
 | `step <station> [id]` | Open a station in the CLI and model it's routed to ([models](models.md)). | `-m/--model <m>`, `--headless`, `--print` |
 | `models` | Pick models per station or phase (interactive). `models set <station\|phase> <model>`, `models check` to see what each resolves to. | `--json` |
@@ -46,6 +48,8 @@ node .buildline/bin/feature.mjs task <id> add "<title>" --covers A1 --verify "�
 node .buildline/bin/feature.mjs task <id> T1 pass --note "what ran, what was seen"
 node .buildline/bin/feature.mjs block <id> "<question>"    /   unblock <id> --note "<answer>"
 node .buildline/bin/feature.mjs approve <id> spec --by "<name>"   # only on an explicit yes
+node .buildline/bin/feature.mjs drop <id> "<why>" --by "<name>" --branch feat/038-api-times   # won't ship
+node .buildline/bin/feature.mjs reopen <id> build --note "…"     # back on the line
 ```
 
-`npx buildline move` follows the same approval rules; add `--force` to override.
+`npx buildline move` follows the same approval rules; add `--force` to override. Neither `move` nor `--force` moves a dropped feature: `reopen` it, so picking it up again is always a decision.

@@ -38,7 +38,8 @@ function features() {
 
 function sessionStart() {
   const config = readJson(path.join(root, '.buildline', 'buildline.json')) || {};
-  const active = features().filter((f) => f.data.status !== 'done');
+  // Done and dropped features need nothing from a session.
+  const active = features().filter((f) => !['done', 'dropped'].includes(f.data.status));
   const lines = [`[buildline] autonomy L${config.autonomy ?? 2}. Rules: AGENTS.md › Software factory. Type /buildline for status and next steps.`];
   for (const { dir, data } of active.slice(0, 8)) {
     const tasks = data.tasks || [];
@@ -115,13 +116,13 @@ function promptDetail(prompt) {
 
 /** A feature.mjs command that changes a feature's state, e.g. "feature.mjs task 3 T1 pass". */
 function actedOn(command) {
-  const m = /feature\.mjs\s+(?:move|task|log|block|unblock|approve)\s+(\d{1,4})\b/.exec(String(command || ''));
+  const m = /feature\.mjs\s+(?:move|task|log|block|unblock|approve|drop|reopen)\s+(\d{1,4})\b/.exec(String(command || ''));
   return m ? m[1].padStart(3, '0') : null;
 }
 
 function isDone(id) {
   const dir = fs.existsSync(featuresDir) ? fs.readdirSync(featuresDir).find((d) => d.startsWith(`${id}-`)) : null;
-  return dir ? readJson(path.join(featuresDir, dir, 'feature.json'))?.status === 'done' : false;
+  return dir ? ['done', 'dropped'].includes(readJson(path.join(featuresDir, dir, 'feature.json'))?.status) : false;
 }
 
 function detail(input) {

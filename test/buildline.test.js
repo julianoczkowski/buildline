@@ -492,3 +492,73 @@ test('review: after three rounds back to build, a person decides how to go on', 
   assert.equal(f.metrics.reviewRounds, 3);
   assert.match(f.blocked, /sent this back 3 times/);
 });
+
+test('dropped: a decision not to ship, separate from blocked and done', () => {
+  const root = tmp();
+  install(root, { autonomy: 2 });
+  const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
+  script(root, 'new', 'API response times');
+  script(root, 'block', '1', 'Dropped: little worth fixing');
+  assert.equal(script(root, 'drop', '1').status, 1); // needs a reason
+  assert.equal(script(root, 'drop', '1', 'Measured: little worth fixing', '--by', 'Maya', '--branch', 'feat/001-api-times').status, 0);
+  let f = featureJson(root, '001');
+  assert.equal(f.status, 'dropped');
+  assert.equal(f.blocked, null);
+  assert.equal(f.metrics.shippedAt, null);
+  assert.deepEqual([f.dropped.reason, f.dropped.by, f.dropped.branch], ['Measured: little worth fixing', 'Maya', 'feat/001-api-times']);
+  assert.ok(Math.abs(new Date(f.dropped.at) - Date.now()) < 60e3);
+  assert.match(f.history.at(-1).note, /Dropped at spec by Maya: Measured/);
+
+  // Only reopen moves it, even with --force, and it never waits on anyone.
+  const refused = script(root, 'move', '1', 'build', '--force');
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /is dropped .* reopen 001/);
+  assert.equal(cli('move', '1', 'spec', '--force').status, 1);
+  assert.equal(script(root, 'block', '1', 'anything?').status, 1);
+  assert.equal(script(root, 'drop', '1', 'again').status, 1);
+  const listed = findFeature(root, '1');
+  assert.equal(nextAction(listed, 2).who, null);
+  assert.equal(attention(listed, liveState(listed, [])), null);
+  assert.equal(liveState(listed, [{ feature: '001', state: 'waiting' }]).waiting, false);
+
+  const status = cli('status');
+  assert.match(status.stdout, /0 active, 0 shipped, 1 dropped \(1 this month\)/);
+  assert.match(status.stdout, /Dropped \(1\)[\s\S]*001 +API response times +Measured: little worth fixing · feat\/001-api-times/);
+  assert.doesNotMatch(cli('watch', '--once').stdout, /API response times/);
+  assert.match(cli('watch', '--once', '--shipped').stdout, /DROPPED/);
+  const briefing = hook(root, 'session-start', { session_id: 's1' }).stdout;
+  assert.match(briefing, /\[buildline\] autonomy/);
+  assert.doesNotMatch(briefing, /001-/);
+
+  assert.equal(script(root, 'reopen', '1', 'done').status, 1);
+  assert.equal(script(root, 'reopen', '1', 'spec', '--note', 'customers complained').status, 0);
+  f = featureJson(root, '001');
+  assert.equal(f.status, 'spec');
+  assert.equal(f.dropped, null);
+  assert.match(f.history.at(-1).note, /Reopened at spec: customers complained/);
+  assert.equal(script(root, 'move', '1', 'design').status, 1); // the approval gates still apply
+  assert.equal(script(root, 'reopen', '1', 'build').status, 1); // only dropped features reopen
+});
+
+test('epics close once every child is done or dropped', () => {
+  const root = tmp();
+  install(root, { autonomy: 2 });
+  const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
+  script(root, 'new', 'Performance', '--type', 'epic');
+  script(root, 'new', 'Page weight', '--parent', '1');
+  script(root, 'new', 'API times', '--parent', '001');
+  const open = script(root, 'move', '1', 'done');
+  assert.equal(open.status, 1);
+  assert.match(open.stderr, /in flight: 002 \(spec\), 003 \(spec\)/);
+  assert.match(nextAction(findFeature(root, '1'), 2, listFeatures(root)).text, /0\/2 child features resolved/);
+  script(root, 'move', '2', 'done', '--force');
+  script(root, 'drop', '3', 'Not worth it', '--by', 'Maya');
+  const next = nextAction(findFeature(root, '1'), 2, listFeatures(root));
+  assert.equal(next.who, 'pm');
+  assert.match(next.text, /shipped 002; dropped 003/);
+  assert.equal(cli('move', '1', 'done').status, 0); // no spec/plan approval needed on the index
+  const epic = featureJson(root, '001');
+  assert.equal(epic.status, 'done');
+  assert.match(epic.history.at(-1).note, /Closed: shipped 002; dropped 003/);
+  assert.match(cli('status').stdout, /0 active, 2 shipped, 1 dropped/);
+});

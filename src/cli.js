@@ -7,7 +7,7 @@ import { detect, describeStack } from './detect.js';
 import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRemove, defaultGates } from './install.js';
 import { loadManifest } from './files.js';
 import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, describeModel, discoverModelOptions, checkModel, stationPrompt, launchArgs, externalClis } from './models.js';
-import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, sensitiveBlocker, STATIONS, TYPES } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, sensitiveBlocker, dropFeature, reopenFeature, outcomes, epicSummary, epicNote, isResolved, DROPPED, STATIONS, TYPES } from './features.js';
 import { chime } from './sound.js';
 
 const LOGO = [
@@ -238,21 +238,30 @@ export function status(root, opts = {}) {
   const config = loadConfig(root);
   const features = listFeatures(root);
   if (opts.json) {
-    console.log(JSON.stringify({ config, features: features.map(({ path: _p, ...f }) => ({ ...f, next: nextAction(f, config.autonomy) })) }, null, 2));
+    console.log(JSON.stringify({ config, outcomes: outcomes(features), features: features.map(({ path: _p, ...f }) => ({ ...f, next: nextAction({ ...f, path: _p }, config.autonomy, features) })) }, null, 2));
     return;
   }
-  const active = features.filter((f) => f.status !== 'done');
-  const done = features.length - active.length;
-  console.log(`\n${pc.bold(config.project)} ${pc.dim('·')} ${AUTONOMY[config.autonomy]?.label || 'L' + config.autonomy} ${pc.dim('·')} ${active.length} active, ${done} shipped\n`);
+  const active = features.filter((f) => !isResolved(f));
+  const dropped = features.filter((f) => f.status === DROPPED);
+  const o = outcomes(features);
+  const droppedNote = o.dropped ? `, ${o.dropped} dropped${o.droppedThisMonth ? ` (${o.droppedThisMonth} this month)` : ''}` : '';
+  console.log(`\n${pc.bold(config.project)} ${pc.dim('·')} ${AUTONOMY[config.autonomy]?.label || 'L' + config.autonomy} ${pc.dim('·')} ${active.length} active, ${o.shipped} shipped${droppedNote}\n`);
+  const showDropped = () => {
+    if (!dropped.length) return;
+    // Collapsed: one line each, so decisions not to do something stay findable without crowding the line.
+    console.log(pc.dim(`  Dropped (${dropped.length})`));
+    for (const f of dropped) console.log(pc.dim(`    ${f.id}  ${(f.title || '').slice(0, 34).padEnd(34)}  ${f.dropped?.reason || ''}${f.dropped?.branch ? ` · ${f.dropped.branch}` : ''}`));
+    console.log();
+  };
   if (!active.length) {
     console.log(pc.dim('  No active features. Start one with ') + pc.cyan('npx buildline new "<title>"') + pc.dim(' or /buildline-new in Claude Code.\n'));
-    return;
+    return showDropped();
   }
   const who = { pm: pc.magenta('PM    '), designer: pc.blue('design'), eng: pc.cyan('eng   '), agent: pc.green('agent '), human: pc.red('human ') };
   for (const f of active) {
     const tasks = f.tasks || [];
     const passing = tasks.filter((t) => t.passes).length;
-    const next = nextAction(f, config.autonomy);
+    const next = nextAction(f, config.autonomy, features);
     const station = f.status.padEnd(7);
     console.log(
       `  ${pc.dim(f.id)}  ${(f.title || '').slice(0, 34).padEnd(34)}  ${pc.yellow(station)} ${bar(passing, tasks.length)}  ${who[next.who] || '      '} ${next.text}`,
@@ -260,6 +269,7 @@ export function status(root, opts = {}) {
     if (next.cmd) console.log(`  ${' '.repeat(45)}${pc.dim('▸ ' + next.cmd)}`);
   }
   console.log();
+  showDropped();
 }
 
 // ---- watch -------------------------------------------------------------------
@@ -323,12 +333,32 @@ export function approveFeature(root, ref, stage, opts) {
 export function moveFeature(root, ref, station, opts) {
   const f = findFeature(root, ref);
   if (!f) throw new Error(`No feature matching "${ref}".`);
+  if (station === DROPPED) throw new Error(`To drop ${f.id}, run npx buildline drop ${f.id} "<why>".`);
   if (!STATIONS.includes(station)) throw new Error(`Station must be one of: ${STATIONS.join(', ')}`);
   const config = loadConfig(root);
-  const blocker = opts.force ? null : moveBlocker(f, station, config.autonomy ?? 2) || (sensitiveBlocker(root, f, station, config) && `${sensitiveBlocker(root, f, station, config)} Run npx buildline approve ${f.id} sensitive after looking at them.`);
+  const all = listFeatures(root);
+  if (f.status === DROPPED) throw new Error(`${f.id} is dropped (${f.dropped?.reason || 'no reason recorded'}). Run npx buildline reopen ${f.id} <station> to work on it again.`);
+  const blocker = opts.force ? null : moveBlocker(f, station, config.autonomy ?? 2, all) || (sensitiveBlocker(root, f, station, config) && `${sensitiveBlocker(root, f, station, config)} Run npx buildline approve ${f.id} sensitive after looking at them.`);
   if (blocker) throw new Error(blocker.replace(/node \.buildline\/bin\/feature\.mjs approve/, 'npx buildline approve') + ' Or pass --force.');
-  setStatus(f, station, opts.note);
-  console.log(`${pc.green('✔')} ${f.id} → ${station}`);
+  const closing = f.type === 'epic' && station === 'done' ? epicNote(epicSummary(f, all)) : null;
+  setStatus(f, station, [opts.note, closing && `Closed: ${closing}`].filter(Boolean).join('. ') || undefined);
+  console.log(`${pc.green('✔')} ${f.id} → ${station}${closing ? pc.dim(` (${closing})`) : ''}`);
+}
+
+const gitUser = (root) => process.env.GIT_AUTHOR_NAME || spawnSync('git', ['config', 'user.name'], { cwd: root, encoding: 'utf8' }).stdout?.trim() || process.env.USER || null;
+
+export function dropCommand(root, ref, reason, opts) {
+  const f = findFeature(root, ref);
+  if (!f) throw new Error(`No feature matching "${ref}".`);
+  dropFeature(f, { reason, by: opts.by || gitUser(root), branch: opts.branch });
+  console.log(`${pc.green('✔')} ${f.id} dropped: ${f.dropped.reason}${f.dropped.branch ? pc.dim(` · ${f.dropped.branch}`) : ''}`);
+}
+
+export function reopenCommand(root, ref, station, opts) {
+  const f = findFeature(root, ref);
+  if (!f) throw new Error(`No feature matching "${ref}".`);
+  reopenFeature(f, station, opts.note);
+  console.log(`${pc.green('✔')} ${f.id} reopened at ${station}`);
 }
 
 // ---- gates / run / doctor ------------------------------------------------------
@@ -481,6 +511,7 @@ export async function models(root, args, opts) {
 export async function run(root, ref, opts) {
   const config = loadConfig(root);
   const f = ref ? findFeature(root, ref) : listFeatures(root).find((x) => ['plan', 'build', 'verify', 'review'].includes(x.status));
+  if (f?.status === DROPPED) throw new Error(`${f.id} is dropped. Reopen it first: npx buildline reopen ${f.id} build`);
   if (!f) throw new Error(ref ? `No feature matching "${ref}".` : 'No feature ready to run. Pass an id: buildline run 004');
   if (config.autonomy < 3 && !opts.force) {
     throw new Error(`Autopilot needs autonomy L3+ (this project is L${config.autonomy}). Use /buildline-build ${f.id}, raise "autonomy" in .buildline/buildline.json, or pass --force.`);
@@ -569,7 +600,7 @@ export async function home(root) {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     status(root);
-    const features = listFeatures(root).filter((f) => f.status !== 'done');
+    const features = listFeatures(root).filter((f) => !isResolved(f));
     const action = bail(
       await p.select({
         message: 'What would you like to do?',
