@@ -597,7 +597,7 @@ test('watch: approve moves the feature on, changes lists uncommitted files', asy
   const notes = changes.find((c) => c.path === 'notes.txt');
   assert.equal(notes.x, '?');
   assert.equal(notes.add, 2);
-  const out = snapshot(root, { width: 120, panel: 'changes' });
+  const out = snapshot(root, { width: 120, panel: 'changes' }).replace(/\x1b\[[0-9;]*m/g, '');
   assert.match(out, /CHANGES · \d+ uncommitted/);
   assert.match(out, /U notes\.txt/);
   assert.equal(workingChanges(tmp()), null);
