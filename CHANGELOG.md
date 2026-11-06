@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.1 · 2026-11-06
 - Same as 0.11.0, which was tagged but never published: a new test failed in CI because colour output was on.
 
 ## 0.11.0 · 2026-11-06
