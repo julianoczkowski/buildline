@@ -1,9 +1,6 @@
 # Changelog
 
 ## 0.11.1 · 2026-11-06
-- Same as 0.11.0, which was tagged but never published: a new test failed in CI because colour output was on.
-
-## 0.11.0 · 2026-11-06
 - **`a` in `watch` moves the feature on.** It records the approval the feature is waiting on, or the one for the station it sits at, then moves it to the next station (spec → design → plan → build, review → ship once sensitive paths are approved). Before, the approval was saved but the feature stayed put, so nothing seemed to happen. A feature already approved but never moved is moved on. Design can now be approved from `watch`.
 - `a` says why when there's nothing to approve yet: no acceptance criteria, no task plan, blocked, shipped or dropped.
 - **Uncommitted changes in `watch`.** `c` swaps the events panel for a CHANGES list like VS Code's Source Control: staged and unstaged files with M/A/D/U markers and +/- line counts. The footer shows how many files are uncommitted.
