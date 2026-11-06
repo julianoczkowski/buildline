@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import pc from 'picocolors';
-import { listFeatures, nextAction, approve, readSessions, readActivity, liveState, attention, newAttention, isResolved, DROPPED } from './features.js';
+import { listFeatures, nextAction, approveAndAdvance, readSessions, readActivity, liveState, attention, newAttention, isResolved, DROPPED } from './features.js';
 import { chime, soundOn } from './sound.js';
 import { modelFor, describeModel } from './models.js';
 import { AUTONOMY, VERSION } from './install.js';
@@ -121,6 +121,49 @@ function loadState(root, showShipped) {
     .sort((a, b) => String(a.at).localeCompare(String(b.at)));
   const needs = new Map(all.map((f) => [f.id, attention(f, liveState(f, sessions))]));
   return { config, all, features, events, sessions, needs };
+}
+
+/**
+ * Files changed since the last commit, like VS Code's Source Control list:
+ * [{ path, x, y, staged, add, del }] with git's two status letters, or null outside git.
+ */
+export function workingChanges(root) {
+  const git = (...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 16 << 20 });
+  const st = git('status', '--porcelain=v1', '-z', '--untracked-files=all');
+  if (st.status !== 0) return null;
+  const counts = new Map();
+  const numstat = (out, key) => {
+    for (const line of (out || '').split('\n')) {
+      const [a, d, ...rest] = line.split('\t');
+      if (!rest.length) continue;
+      const file = rest.join('\t').replace(/^.*\{.* => (.*)\}(.*)$/, (m, to, tail) => m.split('{')[0] + to + tail).replace(/^.* => /, '');
+      const c = counts.get(file) || { add: 0, del: 0, binary: false };
+      if (a === '-') c.binary = true;
+      else (c.add += +a), (c.del += +d);
+      counts.set(file, c);
+    }
+  };
+  numstat(git('diff', '--numstat').stdout);
+  numstat(git('diff', '--numstat', '--cached').stdout);
+  const parts = st.stdout.split('\0');
+  const files = [];
+  for (let i = 0; i < parts.length; i++) {
+    const entry = parts[i];
+    if (entry.length < 4) continue;
+    const x = entry[0];
+    const y = entry[1];
+    const file = entry.slice(3);
+    if (x === 'R' || x === 'C') i++; // the next field is the old name
+    const c = counts.get(file) || { add: 0, del: 0, binary: false };
+    if (x === '?' && !c.add) {
+      try {
+        const stat = fs.statSync(path.join(root, file));
+        if (stat.size < 1 << 20) c.add = fs.readFileSync(path.join(root, file), 'utf8').split('\n').filter((l, n, all) => n < all.length - 1 || l).length;
+      } catch {}
+    }
+    files.push({ path: file, x, y, staged: x !== ' ' && x !== '?', ...c });
+  }
+  return files.sort((a, b) => b.staged - a.staged || a.path.localeCompare(b.path));
 }
 
 const stationIndex = (status) => (status === 'new' ? 0 : status === 'done' ? TRACK.length : TRACK.indexOf(status));
@@ -314,11 +357,11 @@ function render(st, ui, W, H) {
   if (bh >= 5) {
     const split = W >= 100 && ui.events !== false ? Math.floor(W * 0.52) : W;
     drawInspector(screen, st, sel, 0, by, split, bh);
-    if (split < W) drawEvents(screen, st, ui, split, by, W - split, bh);
+    if (split < W) (ui.panel === 'changes' ? drawChanges : drawEvents)(screen, st, ui, split, by, W - split, bh);
   }
 
   // footer
-  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped & dropped'], ['e', ui.events === false ? 'events' : 'hide events'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
+  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped & dropped'], ['c', ui.panel === 'changes' ? 'events' : `changes${st.changes?.length ? ` (${st.changes.length})` : ''}`], ['e', ui.events === false ? 'show panel' : 'hide panel'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
   let fx = 1;
   const foot = screen[H - 1];
   if (ui.message && ui.messageUntil > Date.now()) fx = foot.put(1, ` ${ui.message} `, C.flash);
@@ -429,6 +472,61 @@ function drawEvents(screen, st, ui, x, y, w, h) {
   if (!rows.length) screen[y + 1].put(x + 2, 'nothing yet', C.faint);
 }
 
+const CHANGE = {
+  M: ['M', C.amber],
+  A: ['A', C.green],
+  D: ['D', C.red],
+  R: ['R', C.cyan],
+  C: ['C', C.cyan],
+  U: ['!', C.red],
+  T: ['T', C.amber],
+  '?': ['U', C.green],
+};
+
+/** Uncommitted files, grouped like VS Code's Source Control: staged first, then the rest. */
+function drawChanges(screen, st, ui, x, y, w, h) {
+  const files = st.changes;
+  box(screen, x, y, w, h, files ? `CHANGES · ${files.length} uncommitted` : 'CHANGES');
+  if (!files) return screen[y + 1].put(x + 2, 'not a git repository', C.faint);
+  if (!files.length) return screen[y + 1].put(x + 2, '✔ working tree clean: everything is committed', C.green, x + w - 2);
+  const staged = files.filter((f) => f.staged);
+  const rest = files.filter((f) => !f.staged || (f.y !== ' ' && f.y !== '?'));
+  const rows = [];
+  const group = (title, list, letter) => {
+    if (!list.length) return;
+    rows.push({ title: `${title} ${list.length}` });
+    for (const f of list) rows.push({ f, code: letter(f) });
+  };
+  if (staged.length) group('STAGED CHANGES', staged, (f) => f.x);
+  group('CHANGES', rest, (f) => (f.x === '?' ? '?' : f.y !== ' ' ? f.y : f.x));
+  const room = h - 2;
+  const shown = rows.length > room ? rows.slice(0, room - 1) : rows;
+  shown.forEach((row, r) => {
+    const line = screen[y + 1 + r];
+    if (row.title) return line.put(x + 2, row.title, C.muted);
+    const { f, code } = row;
+    const [letter, color] = CHANGE[code] || [code, C.text];
+    const stats = f.binary ? 'bin' : [f.add && `+${f.add}`, f.del && `-${f.del}`].filter(Boolean).join(' ');
+    const statsW = [...stats].length;
+    const end = x + w - 3 - (statsW ? statsW + 1 : 0);
+    const name = path.basename(f.path);
+    const dir = path.dirname(f.path);
+    let cx = line.put(x + 2, letter, color);
+    const deleted = code === 'D';
+    cx = line.put(cx + 1, name, deleted ? C.faint : C.text, end);
+    if (dir !== '.') line.put(cx + 1, clip(dir, Math.max(0, end - cx - 1)), C.faint, end);
+    if (statsW) {
+      let sx = x + w - 2 - statsW;
+      if (f.binary) line.put(sx, stats, C.muted);
+      else {
+        if (f.add) sx = line.put(sx, `+${f.add}`, C.green) + (f.del ? 1 : 0);
+        if (f.del) line.put(sx, `-${f.del}`, C.red);
+      }
+    }
+  });
+  if (rows.length > shown.length) screen[y + 1 + shown.length].put(x + 2, `+${rows.length - shown.length} more`, C.faint);
+}
+
 // ---- runtime -----------------------------------------------------------------
 
 function whoami(root) {
@@ -437,10 +535,11 @@ function whoami(root) {
 }
 
 /** One frame as plain text, for non-interactive output and tests. */
-export function snapshot(root, { width = 110, shipped = false } = {}) {
+export function snapshot(root, { width = 110, shipped = false, panel = 'events' } = {}) {
   const st = loadState(root, shipped);
+  if (panel === 'changes') st.changes = workingChanges(root);
   const height = Math.max(24, 4 + st.features.length + 5 + 16);
-  const ui = { root, tick: 0, sel: 0, scroll: 0, flash: new Map(), freshEvents: new Map(), shipped };
+  const ui = { root, tick: 0, sel: 0, scroll: 0, flash: new Map(), freshEvents: new Map(), shipped, panel };
   return render(st, ui, width, height).map((l) => l.toString().replace(/\s+$/, '')).join('\n');
 }
 
@@ -475,6 +574,7 @@ export async function watch(root, opts = {}) {
   }
   const ui = { root, tick: 0, sel: 0, scroll: 0, flash: new Map(), freshEvents: new Map(), shipped: false, message: '', messageUntil: 0 };
   let st = loadState(root, ui.shipped);
+  let changes = (st.changes = workingChanges(root));
   ui.sound = opts.sound !== false && soundOn(st.config);
   let lastStatus = new Map(st.all.map((f) => [f.id, f.status]));
   let seen = new Set(st.events.map((e) => e.key));
@@ -486,7 +586,9 @@ export async function watch(root, opts = {}) {
   const refresh = () => {
     try {
       st = loadState(root, ui.shipped);
+      st.changes = changes = workingChanges(root);
     } catch {
+      st.changes = changes;
       return; // a file mid-write; try again next tick
     }
     for (const f of st.all) {
@@ -530,6 +632,11 @@ export async function watch(root, opts = {}) {
       else if (k === '\x1b[B' || k === 'j') ui.sel = Math.min(st.features.length - 1, ui.sel + 1);
       else if (k === 's') (ui.shipped = !ui.shipped), refresh();
       else if (k === 'e') (ui.events = ui.events === false), out.write('\x1b[2J');
+      else if (k === 'c') {
+        ui.panel = ui.panel === 'changes' ? 'events' : 'changes';
+        ui.events = true;
+        if ((out.columns || 100) < 100) say('widen the terminal to 100 columns to see the side panel');
+      }
       else if (k === 'm') (ui.sound = !ui.sound), say(ui.sound ? '♪ sound on' : 'sound muted until you quit');
       else if (k === 'u') return done({ action: 'ui' });
       else if ((k === '\r' || k === '\n') && f) {
@@ -537,12 +644,13 @@ export async function watch(root, opts = {}) {
         else if (f.status === DROPPED) say(`${f.id} is dropped: buildline reopen ${f.id} <station>`);
         else return done({ action: 'step', station: TRACK.includes(f.status) ? f.status : 'buildline', id: f.id });
       } else if (k === 'a' && f) {
-        const stage = f.next.cmd?.match(/^buildline approve \S+ (\w+)$/)?.[1];
-        if (!stage) say(`${f.id} isn't waiting on an approval`);
-        else {
-          approve(st.all.find((x) => x.id === f.id), stage, whoami(root));
-          say(`✔ ${stage} approved for ${f.id}`);
+        try {
+          const { stage, movedTo, given } = approveAndAdvance(root, st.all.find((x) => x.id === f.id), whoami(root), st.config, st.all);
+          say(given ? `${f.id} ${stage} was already approved → moved to ${movedTo}` : movedTo ? `✔ ${stage} approved for ${f.id} → moved to ${movedTo}` : `✔ ${stage} approved for ${f.id}`);
           refresh();
+          ui.flash.set(f.id, Date.now() + 2500);
+        } catch (err) {
+          say(err.message);
         }
       }
       draw();

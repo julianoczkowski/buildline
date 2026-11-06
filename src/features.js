@@ -135,6 +135,45 @@ export function approve(feature, stage, by) {
   return saveFeature(feature);
 }
 
+// Where a feature goes once the approval for its own station is in.
+const AFTER_APPROVAL = { spec: 'design', design: 'plan', plan: 'build' };
+
+/**
+ * The approval a person can give a feature right now (the one it's waiting on, or the
+ * one for the station it sits at), or { reason } when there's nothing to approve yet.
+ */
+export function pendingApproval(feature, autonomy = 2, all = null) {
+  if (feature.status === DROPPED) return { reason: `${feature.id} is dropped` };
+  if (feature.status === 'done') return { reason: `${feature.id} has shipped` };
+  const asked = nextAction(feature, autonomy, all).cmd?.match(/^buildline approve \S+ (\w+)$/)?.[1];
+  if (asked) return { stage: asked };
+  if (feature.blocked) return { reason: `${feature.id} is blocked: answer it in the session that asked` };
+  const stage = feature.status;
+  if (!AFTER_APPROVAL[stage] || feature.type === 'fix') return { reason: `${feature.id} isn't waiting on an approval` };
+  if (feature.approvals?.[stage]) return { stage, given: true }; // approved, but nobody moved it on
+  if (stage === 'spec' && /TODO/.test(readSpecSection(feature, 'Acceptance') || 'TODO')) return { reason: `${feature.id} has no acceptance criteria yet: nothing to approve` };
+  if (stage === 'plan' && !(feature.tasks || []).length) return { reason: `${feature.id} has no task plan yet: nothing to approve` };
+  return { stage };
+}
+
+/**
+ * Record the approval a feature is waiting on and, when it was the one holding the
+ * feature at its station, move it on (spec → design → plan → build, review → ship
+ * for sensitive paths). Returns { stage, movedTo } or throws with the reason.
+ */
+export function approveAndAdvance(root, feature, by, config = {}, all = null) {
+  const autonomy = config.autonomy ?? 2;
+  const { stage, given, reason } = pendingApproval(feature, autonomy, all);
+  if (!stage) throw new Error(reason);
+  if (!given) approve(feature, stage, by);
+  const to = stage === 'sensitive' ? (feature.status === 'review' ? 'ship' : null) : stage === feature.status ? AFTER_APPROVAL[stage] : null;
+  const blocked = !to || moveBlocker(feature, to, autonomy, all) || sensitiveBlocker(root, feature, to, config);
+  if (blocked && given) throw new Error(`${feature.id} ${stage} is already approved`);
+  if (blocked) return { stage, movedTo: null, given };
+  setStatus(feature, to, given ? `Moved on from ${stage} (approved by ${feature.approvals[stage].by})` : `${stage} approved by ${by || 'unknown'}, moved to ${to}`);
+  return { stage, movedTo: to, given };
+}
+
 /**
  * What a feature is waiting on, in plain words, for status displays. Pass `all`
  * (every feature) so an epic can say how far its children are.

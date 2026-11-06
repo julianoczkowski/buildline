@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- **`a` in `watch` moves the feature on.** It records the approval the feature is waiting on, or the one for the station it sits at, then moves it to the next station (spec → design → plan → build, review → ship once sensitive paths are approved). Before, the approval was saved but the feature stayed put, so nothing seemed to happen. A feature already approved but never moved is moved on. Design can now be approved from `watch`.
+- `a` says why when there's nothing to approve yet: no acceptance criteria, no task plan, blocked, shipped or dropped.
+- **Uncommitted changes in `watch`.** `c` swaps the events panel for a CHANGES list like VS Code's Source Control: staged and unstaged files with M/A/D/U markers and +/- line counts. The footer shows how many files are uncommitted.
+
 ## 0.10.0 · 2026-10-31
 - **Dropped: a status for features that won't ship.** `feature.mjs drop <id> "<why>" [--by <name>] [--branch <name>]` (or `npx buildline drop`) records the decision, who made it and when, and where any unshipped work lives. It clears a blocker, so a decided-not-to feature no longer shows as waiting on someone forever, and it's never counted as shipped.
 - Status, `watch` and the dashboard keep dropped features off the line and list them in a collapsed **Dropped** group with the reason. Status counts them separately ("2 dropped (1 this month)"). No chime, no live sessions.

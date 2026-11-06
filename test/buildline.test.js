@@ -562,3 +562,43 @@ test('epics close once every child is done or dropped', () => {
   assert.match(epic.history.at(-1).note, /Closed: shipped 002; dropped 003/);
   assert.match(cli('status').stdout, /0 active, 2 shipped, 1 dropped/);
 });
+
+test('watch: approve moves the feature on, changes lists uncommitted files', async () => {
+  const { approveAndAdvance, pendingApproval } = await import('../src/features.js');
+  const { workingChanges, snapshot } = await import('../src/tui.js');
+  const root = tmp();
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  install(root);
+  const config = JSON.parse(read(root, '.buildline/buildline.json'));
+  const a = createFeature(root, { title: 'Approve me' });
+  // Nothing to approve while the acceptance criteria are still TODO.
+  assert.match(pendingApproval(findFeature(root, '1'), config.autonomy).reason, /no acceptance/);
+  assert.throws(() => approveAndAdvance(root, findFeature(root, '1'), 'Ana', config), /no acceptance/);
+  const spec = path.join(a.path, 'spec.md');
+  fs.writeFileSync(spec, fs.readFileSync(spec, 'utf8').replace(/TODO/g, 'filled'));
+  assert.deepEqual(approveAndAdvance(root, findFeature(root, '1'), 'Ana', config), { stage: 'spec', movedTo: 'design', given: undefined });
+  let f = findFeature(root, '1');
+  assert.equal(f.status, 'design');
+  assert.equal(f.approvals.spec.by, 'Ana');
+  // Design can be approved from watch too, then plan waits for tasks.
+  assert.equal(approveAndAdvance(root, f, 'Ana', config).movedTo, 'plan');
+  assert.match(pendingApproval(findFeature(root, '1'), config.autonomy).reason, /no task plan/);
+  // Approved but never moved: `a` moves it on without a second approval.
+  const b = createFeature(root, { title: 'Stuck' });
+  fs.writeFileSync(path.join(b.path, 'spec.md'), fs.readFileSync(path.join(b.path, 'spec.md'), 'utf8').replace(/TODO/g, 'filled'));
+  approve(findFeature(root, '2'), 'spec', 'Ana');
+  assert.equal(approveAndAdvance(root, findFeature(root, '2'), 'Bo', config).given, true);
+  assert.equal(findFeature(root, '2').status, 'design');
+
+  spawnSync('git', ['add', '-A'], { cwd: root });
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init'], { cwd: root });
+  write(root, 'notes.txt', 'one\ntwo\n');
+  const changes = workingChanges(root);
+  const notes = changes.find((c) => c.path === 'notes.txt');
+  assert.equal(notes.x, '?');
+  assert.equal(notes.add, 2);
+  const out = snapshot(root, { width: 120, panel: 'changes' });
+  assert.match(out, /CHANGES · \d+ uncommitted/);
+  assert.match(out, /U notes\.txt/);
+  assert.equal(workingChanges(tmp()), null);
+});
