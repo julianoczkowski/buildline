@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import pc from 'picocolors';
 import { listFeatures, nextAction, approveAndAdvance, readSessions, readActivity, liveState, attention, newAttention, isResolved, DROPPED } from './features.js';
 import { chime, soundOn } from './sound.js';
+import { flow, causes, waits, waitingOnPeople, span, returnsOf } from './insights.js';
 import { modelFor, describeModel } from './models.js';
 import { AUTONOMY, VERSION } from './install.js';
 
@@ -357,11 +358,11 @@ function render(st, ui, W, H) {
   if (bh >= 5) {
     const split = W >= 100 && ui.events !== false ? Math.floor(W * 0.52) : W;
     drawInspector(screen, st, sel, 0, by, split, bh);
-    if (split < W) (ui.panel === 'changes' ? drawChanges : drawEvents)(screen, st, ui, split, by, W - split, bh);
+    if (split < W) ({ changes: drawChanges, flow: drawFlow }[ui.panel] || drawEvents)(screen, st, ui, split, by, W - split, bh);
   }
 
   // footer
-  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped & dropped'], ['c', ui.panel === 'changes' ? 'events' : `changes${st.changes?.length ? ` (${st.changes.length})` : ''}`], ['e', ui.events === false ? 'show panel' : 'hide panel'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
+  const keys = [['↑↓', 'select'], ['⏎', 'open'], ['a', 'approve'], ['u', 'dashboard'], ['s', ui.shipped ? 'hide shipped' : 'shipped & dropped'], ['c', ui.panel === 'changes' ? 'events' : `changes${st.changes?.length ? ` (${st.changes.length})` : ''}`], ['f', ui.panel === 'flow' ? 'events' : 'flow'], ['e', ui.events === false ? 'show panel' : 'hide panel'], ['m', ui.sound ? 'mute' : 'unmute'], ['q', 'quit']];
   let fx = 1;
   const foot = screen[H - 1];
   if (ui.message && ui.messageUntil > Date.now()) fx = foot.put(1, ` ${ui.message} `, C.flash);
@@ -391,6 +392,12 @@ function drawInspector(screen, st, f, x, y, w, h) {
     return a ? [[`${s} ✔ ${a.by}  `, C.green]] : [[`${s} ·  `, C.faint]];
   });
   add(['approvals ', C.muted], ...appr.flat());
+  // Time spent waiting on a person, and how often work came back, so a slow feature says why.
+  const wt = waits(f, { waitingNow: waitingOnPeople(f, f.next, f.live) });
+  const causeList = Object.entries(f.metrics?.causes || {}).map(([k, n]) => `${k} ${n}`).join(', ');
+  const back = returnsOf(f);
+  if (wt.people >= 60e3) add(['waited ', C.muted], [`on people ${span(wt.people)} of ${span(wt.total)}`, wt.people > wt.total / 2 ? C.amber : C.text]);
+  if (back) add(['rework ', C.muted], [`sent back ${back}×`, C.red], [causeList ? `  (${causeList})` : '', C.muted]);
   const why = f.status === DROPPED ? f.dropped?.reason || 'no reason recorded' : f.blocked;
   if (why) {
     const width = Math.max(10, w - 15);
@@ -472,6 +479,39 @@ function drawEvents(screen, st, ui, x, y, w, h) {
   if (!rows.length) screen[y + 1].put(x + 2, 'nothing yet', C.faint);
 }
 
+/** Where work moves on and where it is sent back from, per station, with the causes recorded for returns. */
+function drawFlow(screen, st, ui, x, y, w, h) {
+  const rows = flow(st.all);
+  const why = causes(st.all);
+  box(screen, x, y, w, h, `FLOW · ${why.total} return${why.total === 1 ? '' : 's'}`);
+  const put = (r, cx, text, style, max = x + w - 2) => screen[y + 1 + r].put(cx, text, style, max);
+  if (h < 4) return;
+  put(0, x + 2, 'station   in   on back  sent back to', C.muted);
+  const most = Math.max(1, ...rows.map((r) => r.entered));
+  let r = 1;
+  for (const row of rows) {
+    if (r >= h - 2) break;
+    let cx = put(r, x + 2, row.station.padEnd(8), row.back ? C.text : C.muted);
+    cx = put(r, cx, String(row.entered).padStart(4), C.text);
+    cx = put(r, cx, String(row.forward).padStart(5), C.green);
+    cx = put(r, cx, String(row.back).padStart(5), row.back ? C.red : C.faint);
+    const to = Object.entries(row.backTo).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s} ${n}`).join(', ');
+    if (to) put(r, cx + 2, '↩ ' + to, C.red);
+    else put(r, cx + 2, '▪'.repeat(Math.max(row.entered ? 1 : 0, Math.round((row.entered / most) * Math.max(0, w - (cx - x) - 5)))), C.amberDim);
+    r++;
+  }
+  if (r < h - 3) {
+    r++;
+    put(r++, x + 2, why.total ? 'why it came back' : 'nothing sent back yet', C.muted);
+    const max = Math.max(1, ...why.map((c) => c.count), why.unknown);
+    for (const c of [...why, ...(why.unknown ? [{ cause: 'unknown', count: why.unknown }] : [])]) {
+      if (r >= h - 2) break;
+      const cx = put(r, x + 2, c.cause.padEnd(9), c.cause === 'unknown' ? C.faint : C.text);
+      put(r++, cx, '█'.repeat(Math.max(1, Math.round((c.count / max) * Math.max(4, w - 20)))) + ` ${c.count}`, c.cause === 'unknown' ? C.faint : C.amber);
+    }
+  }
+}
+
 const CHANGE = {
   M: ['M', C.amber],
   A: ['A', C.green],
@@ -536,6 +576,7 @@ function whoami(root) {
 
 /** One frame as plain text, for non-interactive output and tests. */
 export function snapshot(root, { width = 110, shipped = false, panel = 'events' } = {}) {
+  // panel: 'events', 'changes' (uncommitted files) or 'flow' (returns and their causes)
   const st = loadState(root, shipped);
   if (panel === 'changes') st.changes = workingChanges(root);
   const height = Math.max(24, 4 + st.features.length + 5 + 16);
@@ -632,8 +673,9 @@ export async function watch(root, opts = {}) {
       else if (k === '\x1b[B' || k === 'j') ui.sel = Math.min(st.features.length - 1, ui.sel + 1);
       else if (k === 's') (ui.shipped = !ui.shipped), refresh();
       else if (k === 'e') (ui.events = ui.events === false), out.write('\x1b[2J');
-      else if (k === 'c') {
-        ui.panel = ui.panel === 'changes' ? 'events' : 'changes';
+      else if (k === 'c' || k === 'f') {
+        const panel = k === 'c' ? 'changes' : 'flow';
+        ui.panel = ui.panel === panel ? 'events' : panel;
         ui.events = true;
         if ((out.columns || 100) < 100) say('widen the terminal to 100 columns to see the side panel');
       }

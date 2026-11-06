@@ -39,7 +39,7 @@ A task only gets `"passes": true` after the gates pass **and** its own verificat
 ### Rules for agents
 
 1. **One feature, one task at a time.** Pick the first task with `"passes": false`, finish it, record evidence, commit, then move on.
-2. **Never weaken the checks.** Do not delete, skip, or loosen tests, acceptance scenarios or gates to make them pass. If a check is wrong, stop and say so.
+2. **Never weaken the checks.** Do not delete, skip, or loosen tests, acceptance scenarios or gates to make them pass; tests under `review.lockedTests` can't be changed at all during build. If a check is wrong, stop and say so. When verify or review sends work back, record where the problem started with `--cause`.
 3. **Never edit the `acceptance` section of a spec during build.** It belongs to the spec owner.
 4. **Leave a trail.** Append to `progress.md` at the end of every work session: what changed, what was verified, what is next.
 5. **Respect the autonomy level** (`autonomy` in `buildline.json`): pause for human approval where the station playbook says to Record an approval (including `sensitive`, for paths in `review.sensitive`) only after the person said yes in this conversation, never with `--force` to get around one.

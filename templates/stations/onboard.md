@@ -55,5 +55,6 @@ Keep each file under ~120 lines. Prefer bullet points and file paths over prose.
 - `.buildline/principles.md`: review the defaults with the person and adjust. These are the rules every change is checked against.
 - `REVIEW.md` (repo root): what review should care about here. Replace the examples under *What failure looks like here* with this project's own areas, list generated or vendored paths under *Skip*, and keep it under ~40 lines. If the project already has a `REVIEW.md`, leave it alone and mention it.
 - `buildline.json → review.sensitive`: paths where every change needs a person, whatever the autonomy level (CI workflows are there by default). Propose the obvious ones you found, such as auth, billing and payments, migrations, infrastructure and release scripts, and confirm them with the person.
+- `buildline.json → review.lockedTests`: tests a person owns, that agents must make pass rather than change (acceptance or end-to-end tests, contract tests), e.g. `["tests/acceptance/**"]`. Propose it only if the project has such a folder, and confirm it with the person. Agents can still add new files there.
 
 Finish with a short summary of what you learned, what's still unknown, and the recommended next step.

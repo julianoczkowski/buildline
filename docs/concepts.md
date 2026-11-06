@@ -13,7 +13,9 @@ Every change, from a one-line fix to a new product area, is a **feature**: a fol
 
 ### `spec.md` sections
 
-`Brief` → `Requirements` (R1…) → `Acceptance` (A1…, Given/When/Then) → `Out of scope` → `Design` (`Experience`, `Technical`) → `Plan` → `Verification` → `Review`.
+`Brief` → `Requirements` (R1…) → `Acceptance` (A1…, Given/When/Then) → `Out of scope` → `Design` (`Experience`, `Technical`, `Edge behaviour`) → `Plan` → `Try run` → `Verification` → `Review`.
+
+**Edge behaviour** says what happens on each call's unhappy branches: invalid input, an auth failure, a timeout, a response in an unexpected shape. The verifier tests every branch listed there. **Try run** is a fresh agent's reading of the spec, design and plan before anything is built: what it would build, and where it had to guess. The plan station resolves those gaps, and the person sees any still open when approving the plan.
 
 One file, not six. Aim for one screen; two screens means it's probably an epic.
 
@@ -120,6 +122,30 @@ The review station is built on how Anthropic reviews code that agents write ([re
 
   A feature whose commits touch one of these can't move to ship until someone runs `npx buildline approve <id> sensitive` (or presses Approve in the dashboard or `a` in `watch`). The approval covers the commit they saw; new commits need a fresh one. A bare name like `billing/` matches at any depth, as in `.gitignore`.
 - **The PR says how to undo it**: the ship station writes *Testing*, *Risk* and *How to revert* into every PR description.
+
+## Returns and root causes
+
+When verify or review sends work back, the move records where the problem started:
+
+| Cause | Means |
+|---|---|
+| `spec` | the spec was wrong, vague or missing a case |
+| `design` | the design missed a state, an edge or a contract |
+| `plan` | the plan left something out or ordered it badly |
+| `process` | a gate, tool or check should have caught it earlier |
+| `code` | the spec and design were right; the code was wrong |
+
+`npx buildline insights`, `f` in `watch` and the dashboard's **Flow** tab add these up with the flow of work (how often each station passes work on or sends it back, and where to) and how long features waited on people: the gap before each approval, blocked questions, and the wait to merge. When one cause keeps coming up, the ship station proposes a fix where it belongs (the spec template, the design template, a gate) and a person decides. The waiting time is an estimate from history.
+
+## Locked tests
+
+Tests a person owns, such as acceptance or contract tests, can be locked so agents make the code pass them rather than change them:
+
+```json
+"review": { "lockedTests": ["tests/acceptance/**"] }
+```
+
+While any feature is in build, verify or review, the Claude Code guard hook refuses edits to existing files there (new files are fine), and review treats any change to them as a blocker. Off by default; onboarding proposes it when the project has such a folder.
 
 ## Context
 

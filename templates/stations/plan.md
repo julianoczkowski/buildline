@@ -32,8 +32,19 @@ Then write a one-paragraph `## Plan` summary in `spec.md` (approach, order, risk
 - No task changes the acceptance criteria.
 - The final task is "All gates pass and acceptance scenarios verified end to end."
 
+## Try run
+
+Before asking anyone to approve the plan, find out whether it can be built without guessing. Skip this for a `fix`.
+
+1. Hand the feature folder to the `buildline-try-run` subagent. Give it only the folder path: no summary, no opinion. If subagents aren't available, start a fresh session and ask it to follow `.claude/agents/buildline-try-run.md` (or paste that file's instructions).
+2. Write what it reports into `spec.md → ## Try run`: the date, its `verdict`, the gaps (`G1`, …) and mismatches, and next to each one how it was resolved.
+3. Resolve each gap where it belongs: a missing case goes into the spec (ask the spec owner; acceptance is theirs), a missing state or edge into `## Design`, a missing step into the tasks. If a gap needs a person's decision, ask it now and note the answer.
+4. Anything you can't resolve stays in `## Try run` as **open**, and the person sees it when approving the plan.
+
+A try run that finds nothing is fine; say so in one line.
+
 ## Handoff
 
-- **Approval:** at autonomy ≤ 2, ask the person to approve the plan and record it only on an explicit yes: `node .buildline/bin/feature.mjs approve <id> plan --by "<their name>"`. Until then the feature stays at `plan`. At L3+, continue without waiting.
+- **Approval:** at autonomy ≤ 2, show the person the `## Try run` result (any gaps still open, first), ask them to approve the plan and record it only on an explicit yes: `node .buildline/bin/feature.mjs approve <id> plan --by "<their name>"`. Until then the feature stays at `plan`. At L3+, continue without waiting.
 - Then `node .buildline/bin/feature.mjs move <id> build --note "<n> tasks"`.
 - Next: `/buildline-build <id>`, or `/buildline-autopilot <id>` to run build → verify → review unattended.

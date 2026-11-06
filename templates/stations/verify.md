@@ -22,7 +22,7 @@ Don't pass it your build notes or your opinion of the code: the point is a fresh
    - **API:** real HTTP requests against the running service; check status codes and bodies.
    - **CLI / library:** run the command or a small script and check output.
    - Prefer an existing automated end-to-end test that encodes the scenario; run it and confirm it actually asserts the *Then*.
-3. Checks the design states listed in `## Design` (loading, empty, error…) and basic accessibility (keyboard path, labels) for UI changes.
+3. Checks the design states listed in `## Design` (loading, empty, error…), every branch in `#### Edge behaviour` (failed calls, timeouts, unexpected responses), and basic accessibility (keyboard path, labels) for UI changes.
 4. Reports each scenario as `PASS` / `FAIL` / `BLOCKED` with evidence (command + output excerpt, or screenshot path).
 
 ## 3. Record the result
@@ -41,4 +41,11 @@ Save screenshots and logs to `.buildline/features/<id>-<slug>/evidence/`.
 ## 4. Route
 
 - All pass → `node .buildline/bin/feature.mjs move <id> review --note "A1–A<n> pass"`. Next: `/buildline-review <id>`.
-- Any fail → for each failure, `node .buildline/bin/feature.mjs task <id> add "Fix A3: empty state copy" --covers A3`, then `node .buildline/bin/feature.mjs move <id> build --note "<n> scenarios fail"` (this counts a rework). Next: `/buildline-build <id>`.
+- Any fail → for each failure, `node .buildline/bin/feature.mjs task <id> add "Fix A3: empty state copy" --covers A3`, then `node .buildline/bin/feature.mjs move <id> build --note "<n> scenarios fail" --cause <cause>` (this counts a rework). Next: `/buildline-build <id>`.
+- **Cause** says where the problem started, so the team can see where the line leaks (`npx buildline insights`). Pick the earliest station that could have prevented it:
+  - `spec`: the scenario or requirement was wrong, vague or missing a case.
+  - `design`: the design missed a state, an edge or a contract.
+  - `plan`: the plan left the work out or ordered it badly.
+  - `process`: a gate, test or check should have caught it before verify.
+  - `code`: the spec and design were right; the code was wrong.
+  When the cause is `spec`, `design` or `plan`, the fix may belong at that station: move the feature there instead of to build (`move <id> spec --cause spec`), and say what needs changing.

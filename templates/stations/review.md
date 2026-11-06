@@ -20,7 +20,7 @@ The reviewer reports only findings that matter, each with file:line, severity (`
 - **Correctness:** edge cases, error handling, concurrency, off-by-one, null handling.
 - **Security:** injection, authz checks on every new endpoint, secrets, unsafe input handling, dependency risk.
 - **Maintainability:** follows existing conventions, no dead code or debug leftovers, names make sense.
-- **Tests:** the tests actually assert the behaviour (not just "doesn't crash"); no skipped or weakened tests.
+- **Tests:** the tests actually assert the behaviour (not just "doesn't crash"); no skipped or weakened tests. Any change to a locked test (`review.lockedTests` in `buildline.json`) is a blocker unless a person made or approved it.
 - **UX (UI changes):** matches `## Design`; use the `buildline-design-reviewer` subagent with screenshots from `evidence/`.
 
 ## 3. Check the findings
@@ -44,6 +44,6 @@ Write `## Review` in `spec.md`. Start with the count (`2 should-fix fixed, 1 nit
 
 ## 7. Route
 
-Blockers and should-fix findings become tasks (`node .buildline/bin/feature.mjs task <id> add "…"`) and the feature goes back with `node .buildline/bin/feature.mjs move <id> build --note "<n> findings"`. After the third time review sends a feature back, the move marks it blocked: the person decides whether to keep fixing or rethink the approach. Don't work around that.
+Blockers and should-fix findings become tasks (`node .buildline/bin/feature.mjs task <id> add "…"`) and the feature goes back with `node .buildline/bin/feature.mjs move <id> build --note "<n> findings" --cause <cause>`. The cause is where the most serious finding started: `spec`, `design`, `plan`, `process` (a gate or check should have caught it) or `code` (see `verify.md` for what each means). If the spec or design itself is wrong, send it back there instead of to build. After the third time review sends a feature back, the move marks it blocked: the person decides whether to keep fixing or rethink the approach. Don't work around that.
 
 When there are none: `node .buildline/bin/feature.mjs move <id> ship --note "review clean"`, next `/buildline-ship <id>`. If the feature touches sensitive paths (`review.sensitive` in `buildline.json`, CI workflows by default), the move stops and asks for a person's approval: show them the files, and record the approval only if they say yes. A human still approves the merge at every autonomy level.

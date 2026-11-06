@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+Ideas from [the model keeps the fighter flying](https://www.software-leader.com/blogs/the-model-keeps-the-fighter-flying) series that need nothing new beyond what Buildline already records:
+- **Root cause on every return.** When verify or review sends work back, the move says where the problem started: `--cause spec|design|plan|process|code`. `feature.mjs move` and `npx buildline move` ask for it; the dashboard asks when you move a feature back.
+- **`npx buildline insights`**: the flow of work (how often each station passes work on or sends it back, and where to), why work came back, and how long features waited on people. When one cause keeps coming up, it suggests where the fix belongs; the ship station proposes it and a person decides.
+- **Flow in `watch` and the dashboard.** `f` in `watch` swaps the event log for the flow and the causes; the dashboard has a **Flow** tab. The inspector and the feature drawer show how long a feature waited on people and how often it was sent back, and `status` shows the waiting time per feature.
+- **Try run.** Before a plan is approved, the new `buildline-try-run` subagent reads the spec, design and plan with no other context and says what it would build. Every place it had to guess is a gap to resolve now, written to `## Try run` in the spec.
+- **Edge behaviour.** The technical design now says what happens when each call fails, times out or returns something unexpected, and the verifier tests those branches.
+- **Locked tests.** `review.lockedTests` in `buildline.json` (e.g. `["tests/acceptance/**"]`) stops agents changing existing tests there while a feature is being built, verified or reviewed; review treats a change to them as a blocker. Off by default.
+- Run `npx buildline@latest update` to get the new playbooks, subagent, script and hook. Existing specs keep working; new ones get the `Edge behaviour` and `Try run` sections.
+
 ## 0.11.1 · 2026-11-06
 - **`a` in `watch` moves the feature on.** It records the approval the feature is waiting on, or the one for the station it sits at, then moves it to the next station (spec → design → plan → build, review → ship once sensitive paths are approved). Before, the approval was saved but the feature stayed put, so nothing seemed to happen. A feature already approved but never moved is moved on. Design can now be approved from `watch`.
 - `a` says why when there's nothing to approve yet: no acceptance criteria, no task plan, blocked, shipped or dropped.

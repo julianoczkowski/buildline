@@ -24,8 +24,14 @@ _Flows, screens and states, components, copy, accessibility. Skip for non-UI cha
 ### Technical
 _Approach, changes, risks, test strategy._
 
+#### Edge behaviour
+_For each user action that calls something: success, invalid input, auth failure, timeout or failure, and an unexpected response. What does the UI or caller do in each case? Skip if nothing is called._
+
 ## Plan
 _Written by the plan station. Tasks live in feature.json._
+
+## Try run
+_A fresh reading of the spec, design and plan before building: what it would build, and where it had to guess. Written by the plan station._
 
 ## Verification
 _Written by the verify station._

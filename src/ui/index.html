@@ -121,6 +121,22 @@ textarea.editor { width: 100%; min-height: 60vh; font: 13px/1.55 var(--mono); pa
 .tasks li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .tasks .ok { color: var(--green); font-weight: 700; } .tasks .todo { color: var(--ink-3); }
 .tasks small { color: var(--ink-2); display: block; }
+.flow { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.flow section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; min-width: 0; }
+.flow h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 0 0 4px; }
+.flow p.sub { margin: 0 0 12px; color: var(--ink-3); font-size: 13px; }
+.flow table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.flow th { text-align: left; font-weight: 500; color: var(--ink-3); font-size: 12px; padding: 4px 6px; }
+.flow td { padding: 5px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+.flow td.n { text-align: right; font-variant-numeric: tabular-nums; width: 3em; }
+.flow .fwd { color: var(--green); } .flow .back { color: var(--red); } .flow .zero { color: var(--ink-3); }
+.flow .meter { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--panel-2); min-width: 60px; }
+.flow .meter i { display: block; height: 100%; }
+.flow .meter .f { background: var(--green); } .flow .meter .b { background: var(--red); }
+.flow .bar { height: 10px; border-radius: 3px; background: var(--accent); }
+.flow .remedy { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 13px; }
+.flow .remedy small { display: block; color: var(--ink-2); margin-top: 2px; }
+.waited { margin: 12px 20px 0; font-size: 13px; color: var(--ink-2); }
 .history { list-style: none; padding: 0; font-size: 13px; } .history li { padding: 6px 0; border-bottom: 1px solid var(--line); } .history time { color: var(--ink-3); font: 12px var(--mono); margin-right: 8px; }
 
 .context { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
@@ -159,6 +175,7 @@ dialog h2 { margin: 0 0 12px; font-size: 17px; }
   <span class="chip accent" id="autonomy" title="Autonomy level: set in .buildline/buildline.json"></span>
   <nav class="tabs" role="tablist">
     <button role="tab" aria-selected="true" data-view="board">Board</button>
+    <button role="tab" aria-selected="false" data-view="flow">Flow</button>
     <button role="tab" aria-selected="false" data-view="context">Context</button>
   </nav>
   <span class="spacer"></span>
@@ -289,6 +306,30 @@ function renderBoard() {
     return `<section class="col" aria-label="${label}"><h2><span>${label} <span class="owner">${owner}${modelTag}</span></span><small>${items.length}</small></h2>${items.map(card).join('') || '<div class="empty">—</div>'}</section>`;
   }).join('')}</div>${droppedGroup}`;
 }
+const span = (ms) => { const m = Math.floor(ms / 60e3); if (m < 1) return `${Math.round(ms / 1000)}s`; if (m < 60) return `${m}m`; const h = Math.floor(m / 60); return h < 24 ? `${h}h${m % 60 ? `${m % 60}m` : ''}` : `${Math.floor(h / 24)}d${h % 24 ? `${h % 24}h` : ''}`; };
+/** Where work moves on and where it's sent back from, why it came back, and how long features wait on people. */
+function renderFlow() {
+  const I = S.insights;
+  const rows = I.flow.filter((r) => r.entered || r.back);
+  const flowTable = rows.length ? `<table><thead><tr><th>Station</th><th class="n">In</th><th class="n">On</th><th class="n">Back</th><th></th><th>Sent back to</th></tr></thead><tbody>${rows.map((r) => {
+    const out = r.forward + r.back;
+    const to = Object.entries(r.backTo).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${esc(s)} ${n}`).join(', ');
+    return `<tr><td>${esc(r.station)}</td><td class="n">${r.entered}</td><td class="n fwd">${r.forward}</td><td class="n ${r.back ? 'back' : 'zero'}">${r.back}</td><td><div class="meter" title="${out ? Math.round((r.back / out) * 100) : 0}% sent back">${out ? `<i class="f" style="width:${(r.forward / out) * 100}%"></i><i class="b" style="width:${(r.back / out) * 100}%"></i>` : ''}</div></td><td class="back">${to}</td></tr>`;
+  }).join('')}</tbody></table>` : '<p class="empty">Nothing has moved yet.</p>';
+  const max = Math.max(1, ...I.causes.map((c) => c.count), I.unknown);
+  const causeRows = [...I.causes, ...(I.unknown ? [{ cause: 'unknown', count: I.unknown, meaning: 'sent back before causes were recorded' }] : [])];
+  const top = I.causes[0];
+  const causeTable = causeRows.length ? `<table><tbody>${causeRows.map((c) => `<tr><td style="width:6em">${esc(c.cause)}</td><td><div class="bar" style="width:${(c.count / max) * 100}%;${c.cause === 'unknown' ? 'background:var(--line)' : ''}"></div></td><td class="n">${c.count}</td></tr><tr><td></td><td colspan="2" style="border:0;padding-top:0;color:var(--ink-3);font-size:12px">${esc(c.meaning)}</td></tr>`).join('')}</tbody></table>${top && top.count >= 2 ? `<div class="remedy">${esc(top.remedy)}<small>A suggestion from the numbers: you decide whether to act on it.</small></div>` : ''}` : '<p class="empty">Verify and review haven\'t sent anything back.</p>';
+  const timed = S.features.filter((f) => f.waits && f.status !== 'unknown');
+  const total = timed.reduce((n, f) => n + f.waits.total, 0), people = timed.reduce((n, f) => n + f.waits.people, 0);
+  const slow = timed.filter((f) => f.waits.people >= 60e3).sort((a, b) => b.waits.people - a.waits.people).slice(0, 8);
+  const waitTable = slow.length ? `<table><thead><tr><th>Feature</th><th class="n">People</th><th class="n">Total</th><th></th></tr></thead><tbody>${slow.map((f) => `<tr><td><button class="card-link" data-open="${esc(f.id)}" style="border:0;background:none;padding:0;text-align:left;color:inherit"><span style="font:12px var(--mono);color:var(--ink-3)">${esc(f.id)}</span> ${esc(f.title)}</button></td><td class="n">${span(f.waits.people)}</td><td class="n zero">${span(f.waits.total)}</td><td style="width:30%"><div class="meter"><i class="b" style="background:var(--accent);width:${(f.waits.people / Math.max(1, f.waits.total)) * 100}%"></i></div></td></tr>`).join('')}</tbody></table>` : '<p class="empty">No feature has waited on a person yet.</p>';
+  return `<div class="flow">
+    <section><h2>Flow of work</h2><p class="sub">How often work arrived at each station, moved on, and was sent back.</p>${flowTable}</section>
+    <section><h2>Why work came back</h2><p class="sub">${I.total} return${I.total === 1 ? '' : 's'} from verify and review, by root cause.</p>${causeTable}</section>
+    <section><h2>Waiting on people</h2><p class="sub">${span(people)} of ${span(total)} on the line${total ? ` (${Math.round((people / total) * 100)}%)` : ''}. Estimated from history: approvals, blocked questions, the wait to merge.</p>${waitTable}</section>
+  </div>`;
+}
 async function renderContext() {
   ctxPath ??= S.context[0]?.path;
   const list = S.context.map((c) => `<button aria-selected="${c.path === ctxPath}" data-ctx="${esc(c.path)}"><span>${esc(c.name)}</span>${c.todo ? '<span class="chip accent">todo</span>' : ''}</button>`).join('');
@@ -310,7 +351,7 @@ async function render() {
   $('#soundBtn').setAttribute('aria-pressed', on);
   $('#soundBtn').title = on ? 'Chimes when a feature needs you or ships. Click to mute.' : 'Click to chime when a feature needs you or ships.';
   document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === view));
-  if (!(view === 'context' && ctxEditing && $('#ctxEditor'))) $('#main').innerHTML = view === 'board' ? renderBoard() : await renderContext();
+  if (!(view === 'context' && ctxEditing && $('#ctxEditor'))) $('#main').innerHTML = view === 'board' ? renderBoard() : view === 'flow' ? renderFlow() : await renderContext();
   if (openId) await renderDrawer();
 }
 async function renderDrawer() {
@@ -344,12 +385,27 @@ async function renderDrawer() {
     <header><div style="min-width:0;flex:1"><div class="top" style="display:flex;gap:6px;align-items:center"><span class="id" style="font:12px var(--mono);color:var(--ink-3)">${esc(f.id)}</span><span class="chip type-${esc(f.type)}">${esc(f.type)}</span><span class="chip">${esc(f.status)}</span>${f.owner ? `<span class="chip">👤 ${esc(f.owner)}</span>` : ''}</div><h1>${esc(f.title)}</h1></div><button class="btn" onclick="closeDrawer()" aria-label="Close">✕</button></header>
     <div class="actions">${isDropped ? '' : appr}<span class="spacer"></span>${station}</div>
     ${isDropped ? `<div class="dropped-note"><b>Dropped</b>${dr.by ? ` by ${esc(dr.by)}` : ''}${dr.at ? ` on ${esc(dr.at.slice(0, 10))}` : ''}: ${esc(dr.reason || 'no reason recorded')}${dr.branch ? `<br>Unshipped work: <code>${esc(dr.branch)}</code>` : ''}</div>` : ''}
+    ${f.waits && (f.waits.people >= 60e3 || f.returns) ? `<div class="waited">${f.waits.people >= 60e3 ? `Waited on people <b>${span(f.waits.people)}</b> of ${span(f.waits.total)} on the line.` : ''}${f.returns ? ` Sent back ${f.returns}×${Object.keys(f.metrics.causes || {}).length ? ` (${Object.entries(f.metrics.causes).map(([k, n]) => `${esc(k)} ${n}`).join(', ')})` : ''}.` : ''}</div>` : ''}
     ${!isDropped && f.next?.cmd ? `<div class="actions"><label>Next</label><span>${esc(f.next.text)}</span><code class="cmd">${esc(f.next.cmd)}</code><button class="btn small" onclick="copy(${esc(JSON.stringify(f.next.cmd))})">Copy</button>${S.config.autonomy >= 3 && ['plan','build','verify','review'].includes(f.status) ? `<button class="btn small" onclick="copy(${esc(JSON.stringify(f.goal))})">Copy /goal</button>` : ''}</div>` : ''}
     <nav class="tabs" style="margin:12px 20px 0;align-self:flex-start">${['spec', 'tasks', 'progress', 'history'].map((t) => `<button aria-selected="${t === drawerTab}" data-dtab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</nav>
     <div class="body">${body}</div>`;
   d.classList.add('open'); $('#backdrop').classList.add('open');
   if (isDropped) { $('#reopenSel').onchange = async (e) => { if (!e.target.value) return; await api(`/api/features/${f.id}/reopen`, { method: 'POST', body: JSON.stringify({ status: e.target.value, note: `from dashboard by ${me() || 'someone'}` }) }); toast(`Reopened at ${e.target.value}`); refresh(); }; return; }
-  $('#moveSel').onchange = async (e) => { await api(`/api/features/${f.id}/move`, { method: 'POST', body: JSON.stringify({ status: e.target.value, note: `Moved to ${e.target.value} from dashboard by ${me() || 'someone'}` }) }); toast(`Moved to ${e.target.value}`); refresh(); };
+  $('#moveSel').onchange = async (e) => {
+    const to = e.target.value, order = COLUMNS.map(([k]) => k);
+    let cause;
+    // Sending work back from verify or review records where the problem started.
+    if (['verify', 'review'].includes(f.status) && order.indexOf(to) < order.indexOf(f.status)) {
+      const list = Object.keys(S.insights.meanings);
+      cause = prompt(`Why is it going back to ${to}? Where did the problem start?\n\n${list.map((k) => `${k}: ${S.insights.meanings[k]}`).join('\n')}`, 'code');
+      if (cause === null) return renderDrawer();
+      cause = cause.trim().toLowerCase();
+      if (!list.includes(cause)) { toast(`Use one of: ${list.join(', ')}`); return renderDrawer(); }
+    }
+    try { await api(`/api/features/${f.id}/move`, { method: 'POST', body: JSON.stringify({ status: to, cause, note: `Moved to ${to} from dashboard by ${me() || 'someone'}` }) }); toast(`Moved to ${to}`); }
+    catch (err) { toast(err.message); }
+    refresh();
+  };
 }
 
 // ---- actions ----

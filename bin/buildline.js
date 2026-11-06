@@ -17,9 +17,10 @@ ${pc.bold('Commands')}
   ${pc.cyan('status')}                   show features, stations and what's next
   ${pc.cyan('new')} "<title>"            open a feature  ${pc.dim('--type fix|feature|epic  --owner <name>  --parent <id>')}
   ${pc.cyan('approve')} <id> <stage>     record a human approval (spec | design | plan | sensitive)  ${pc.dim('--by <name>')}
-  ${pc.cyan('move')} <id> <station>      move a feature to a station  ${pc.dim('--note "<why>"')}
+  ${pc.cyan('move')} <id> <station>      move a feature to a station  ${pc.dim('--note "<why>"  --cause spec|design|plan|process|code')}
   ${pc.cyan('drop')} <id> "<why>"         record that a feature won't ship  ${pc.dim('--by <name>  --branch <name>')}
   ${pc.cyan('reopen')} <id> <station>    put a dropped feature back on the line  ${pc.dim('--note "<why>"')}
+  ${pc.cyan('insights')}                 where work flows back, why, and time spent waiting on people  ${pc.dim('--json')}
   ${pc.cyan('watch')}                    live view of the line in your terminal  ${pc.dim('--shipped  --once  --no-intro  --quiet')}
   ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open  --quiet')}
   ${pc.cyan('step')} <station> [id]      open a station in the CLI and model set for it  ${pc.dim('--model <m>  --headless  --print')}
@@ -70,6 +71,7 @@ const { values: opts, positionals } = parseArgs({
     parent: { type: 'string' },
     by: { type: 'string' },
     note: { type: 'string' },
+    cause: { type: 'string' },
     branch: { type: 'string' },
     port: { type: 'string' },
     'no-open': { type: 'boolean' },
@@ -114,6 +116,8 @@ async function main() {
     case 'reopen':
       if (rest.length < 2) throw new Error('Usage: buildline reopen <id> <station>');
       return cli.reopenCommand(root, rest[0], rest[1], o);
+    case 'insights':
+      return cli.insights(root, o);
     case 'watch':
     case 'top':
     case 'tui':

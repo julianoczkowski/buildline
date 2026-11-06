@@ -14,7 +14,7 @@ Look for:
 - **Spec fit:** requirements missing or only partly implemented; behaviour nobody asked for.
 - **Correctness:** edge cases, error handling, races, wrong assumptions about data, off-by-one, null handling.
 - **Security:** injection, missing authorization on new endpoints or actions, secrets in code or logs, unsafe deserialization, new dependencies with known risk.
-- **Tests:** tests that don't actually assert the behaviour; skipped, deleted or weakened tests; acceptance scenarios with no test.
+- **Tests:** tests that don't actually assert the behaviour; skipped, deleted or weakened tests; acceptance scenarios with no test. A changed or deleted file under `review.lockedTests` in `.buildline/buildline.json` is a `blocker` unless the diff shows a person made it.
 - **Maintainability:** breaks conventions in architecture.md, duplicated logic that already exists elsewhere (name the existing function), dead code, debug leftovers.
 
 Only report a finding if you can point to a file and line and describe a concrete failure scenario or a concrete rule it breaks. Skip style preferences the linter doesn't enforce, and skip paths `REVIEW.md` says to skip.

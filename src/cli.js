@@ -7,7 +7,8 @@ import { detect, describeStack } from './detect.js';
 import { AGENTS, AUTONOMY, VERSION, makeConfig, plan, apply, removePlan, applyRemove, defaultGates } from './install.js';
 import { loadManifest } from './files.js';
 import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, describeModel, discoverModelOptions, checkModel, stationPrompt, launchArgs, externalClis } from './models.js';
-import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, sensitiveBlocker, dropFeature, reopenFeature, outcomes, epicSummary, epicNote, isResolved, DROPPED, STATIONS, TYPES } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, sensitiveBlocker, dropFeature, reopenFeature, outcomes, epicSummary, epicNote, isResolved, readSessions, liveState, causeProblem, DROPPED, STATIONS, TYPES } from './features.js';
+import { flow, causes, waits, waitingOnPeople, span, REMEDY } from './insights.js';
 import { chime } from './sound.js';
 
 const LOGO = [
@@ -238,9 +239,14 @@ export function status(root, opts = {}) {
   const config = loadConfig(root);
   const features = listFeatures(root);
   if (opts.json) {
-    console.log(JSON.stringify({ config, outcomes: outcomes(features), features: features.map(({ path: _p, ...f }) => ({ ...f, next: nextAction({ ...f, path: _p }, config.autonomy, features) })) }, null, 2));
+    const sessions = readSessions(root);
+    console.log(JSON.stringify({ config, outcomes: outcomes(features), features: features.map(({ path: _p, ...f }) => {
+      const next = nextAction({ ...f, path: _p }, config.autonomy, features);
+      return { ...f, next, waits: waits(f, { waitingNow: waitingOnPeople(f, next, liveState(f, sessions)) }) };
+    }) }, null, 2));
     return;
   }
+  const sessions = readSessions(root);
   const active = features.filter((f) => !isResolved(f));
   const dropped = features.filter((f) => f.status === DROPPED);
   const o = outcomes(features);
@@ -266,10 +272,67 @@ export function status(root, opts = {}) {
     console.log(
       `  ${pc.dim(f.id)}  ${(f.title || '').slice(0, 34).padEnd(34)}  ${pc.yellow(station)} ${bar(passing, tasks.length)}  ${who[next.who] || '      '} ${next.text}`,
     );
-    if (next.cmd) console.log(`  ${' '.repeat(45)}${pc.dim('▸ ' + next.cmd)}`);
+    // How much of its time on the line this feature spent waiting on a person.
+    const w = waits(f, { waitingNow: waitingOnPeople(f, next, liveState(f, sessions)) });
+    const waited = w.people >= 60e3 ? pc.dim(`${next.cmd ? '  ·  ' : ''}waited on people ${span(w.people)} of ${span(w.total)}`) : '';
+    if (next.cmd || waited) console.log(`  ${' '.repeat(45)}${next.cmd ? pc.dim('▸ ' + next.cmd) : ''}${waited}`);
   }
   console.log();
   showDropped();
+}
+
+// ---- insights ----------------------------------------------------------------
+
+const BAR = (n, max, width = 12) => '█'.repeat(max ? Math.max(n ? 1 : 0, Math.round((n / max) * width)) : 0);
+
+export function insights(root, opts = {}) {
+  const config = loadConfig(root);
+  const features = listFeatures(root);
+  const sessions = readSessions(root);
+  const rows = flow(features);
+  const why = causes(features);
+  const timed = features.filter((f) => f.status !== 'unknown').map((f) => {
+    const next = nextAction(f, config.autonomy, features);
+    return { f, w: waits(f, { waitingNow: waitingOnPeople(f, next, liveState(f, sessions)) }) };
+  });
+  if (opts.json) {
+    console.log(JSON.stringify({ flow: rows, causes: { list: why, unknown: why.unknown, total: why.total }, waits: timed.map(({ f, w }) => ({ id: f.id, title: f.title, status: f.status, ...w })) }, null, 2));
+    return;
+  }
+  console.log(`\n${pc.bold(config.project)} ${pc.dim('·')} insights from ${features.length} feature${features.length === 1 ? '' : 's'}\n`);
+  if (!features.length) return console.log(pc.dim('  Nothing on the line yet.\n'));
+
+  // 1. Flow: where work arrives, moves on, and is sent back from.
+  console.log(pc.bold('  Flow of work') + pc.dim('  (in · on · back, and where returns went)'));
+  for (const r of rows) {
+    if (!r.entered && !r.back) continue;
+    const to = Object.entries(r.backTo).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s} ${n}`).join(', ');
+    const leak = r.forward + r.back ? Math.round((r.back / (r.forward + r.back)) * 100) : 0;
+    console.log(`    ${r.station.padEnd(7)} ${String(r.entered).padStart(3)} ${pc.green(String(r.forward).padStart(4))} ${(r.back ? pc.red : pc.dim)(String(r.back).padStart(4))}  ${r.back ? pc.red('↩ ' + to) + pc.dim(`  (${leak}% sent back)`) : ''}`);
+  }
+
+  // 2. Why: the root cause recorded when verify or review sent work back.
+  console.log(`\n${pc.bold('  Why work came back')}${pc.dim(`  (${why.total} return${why.total === 1 ? '' : 's'} from verify and review)`)}`);
+  if (!why.total) console.log(pc.dim('    No returns yet.'));
+  const max = Math.max(1, ...why.map((c) => c.count), why.unknown);
+  for (const c of why) console.log(`    ${c.cause.padEnd(8)} ${pc.yellow(BAR(c.count, max).padEnd(12))} ${String(c.count).padStart(2)}  ${pc.dim(c.meaning)}`);
+  if (why.unknown) console.log(`    ${'unknown'.padEnd(8)} ${pc.dim(BAR(why.unknown, max).padEnd(12))} ${String(why.unknown).padStart(2)}  ${pc.dim('sent back before causes were recorded')}`);
+  const top = why[0];
+  if (top && top.count >= 2) console.log(`\n    ${pc.cyan('▸')} ${REMEDY[top.cause]}\n    ${pc.dim('  A suggestion from the numbers: you decide whether to act on it.')}`);
+
+  // 3. Waiting: time on the line spent waiting on a person.
+  const sum = (list, k) => list.reduce((n, x) => n + (k ? x.w.parts[k] : x.w.people), 0);
+  const total = timed.reduce((n, x) => n + x.w.total, 0);
+  const people = sum(timed);
+  console.log(`\n${pc.bold('  Waiting on people')}${pc.dim(`  ${span(people)} of ${span(total)} on the line${total ? ` (${Math.round((people / total) * 100)}%)` : ''}`)}`);
+  const parts = [['approvals', 'waiting for an approval'], ['blocked', 'blocked on a question'], ['merge', 'waiting to merge at ship'], ['now', 'waiting right now']].filter(([k]) => sum(timed, k) >= 60e3);
+  for (const [k, label] of parts) console.log(`    ${span(sum(timed, k)).padStart(7)}  ${pc.dim(label)}`);
+  const slowest = timed.filter((x) => x.w.people >= 60e3).sort((a, b) => b.w.people - a.w.people).slice(0, 5);
+  if (slowest.length) {
+    console.log(pc.dim('    longest waits'));
+    for (const { f, w } of slowest) console.log(`    ${pc.dim(f.id)}  ${(f.title || '').slice(0, 34).padEnd(34)}  ${span(w.people).padStart(6)} ${pc.dim(`of ${span(w.total)} · ${f.status}`)}`);
+  }
+  console.log(pc.dim('\n  Waiting time is estimated from history: the gap before each approval, blocked spans, the wait to merge.\n'));
 }
 
 // ---- watch -------------------------------------------------------------------
@@ -338,11 +401,13 @@ export function moveFeature(root, ref, station, opts) {
   const config = loadConfig(root);
   const all = listFeatures(root);
   if (f.status === DROPPED) throw new Error(`${f.id} is dropped (${f.dropped?.reason || 'no reason recorded'}). Run npx buildline reopen ${f.id} <station> to work on it again.`);
+  const bad = causeProblem(f.status, station, opts.cause ?? null);
+  if (bad && !(opts.force && opts.cause == null)) throw new Error(bad.replace(/--cause/, 'add --cause'));
   const blocker = opts.force ? null : moveBlocker(f, station, config.autonomy ?? 2, all) || (sensitiveBlocker(root, f, station, config) && `${sensitiveBlocker(root, f, station, config)} Run npx buildline approve ${f.id} sensitive after looking at them.`);
   if (blocker) throw new Error(blocker.replace(/node \.buildline\/bin\/feature\.mjs approve/, 'npx buildline approve') + ' Or pass --force.');
   const closing = f.type === 'epic' && station === 'done' ? epicNote(epicSummary(f, all)) : null;
-  setStatus(f, station, [opts.note, closing && `Closed: ${closing}`].filter(Boolean).join('. ') || undefined);
-  console.log(`${pc.green('✔')} ${f.id} → ${station}${closing ? pc.dim(` (${closing})`) : ''}`);
+  setStatus(f, station, [opts.note, closing && `Closed: ${closing}`].filter(Boolean).join('. ') || undefined, { cause: opts.cause });
+  console.log(`${pc.green('✔')} ${f.id} → ${station}${opts.cause ? pc.dim(` (cause: ${opts.cause})`) : ''}${closing ? pc.dim(` (${closing})`) : ''}`);
 }
 
 const gitUser = (root) => process.env.GIT_AUTHOR_NAME || spawnSync('git', ['config', 'user.name'], { cwd: root, encoding: 'utf8' }).stdout?.trim() || process.env.USER || null;

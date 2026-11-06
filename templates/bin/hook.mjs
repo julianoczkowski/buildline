@@ -5,7 +5,9 @@
 //   pre            before each tool call: the guards below, plus a session heartbeat
 //   guard          blocks edits to a spec's "## Acceptance" section while the
 //                  feature is in build/verify/review, so agents can't move the goalposts,
-//                  and hand edits to feature.json (agents use .buildline/bin/feature.mjs)
+//                  hand edits to feature.json (agents use .buildline/bin/feature.mjs), and
+//                  changes to existing locked tests (review.lockedTests) while a
+//                  feature is in build/verify/review: new test files are fine
 //   prompt / post / notify / stop / session-end
 //                  heartbeat: which session works on which feature and whether
 //                  it is working, running something in the background, or
@@ -14,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { reviewConfig, globToRegex } from './feature.mjs';
 
 const root = process.env.CLAUDE_PROJECT_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const featuresDir = path.join(root, '.buildline', 'features');
@@ -73,6 +76,7 @@ function guard(input) {
   if (tool === 'Bash' && /feature\.json/.test(ti.command || '') && !/feature\.mjs/.test(ti.command || '') && /(>|sed\s+-i|writeFile|json\.dump|\btee\b|perl\s+-[a-z]*i)/.test(ti.command || '')) {
     deny(`buildline guard: don't write feature.json from the shell. ${viaScript}`);
   }
+  lockedTests(tool, ti, file);
   if (!file || !file.startsWith(featuresDir + path.sep) || path.basename(file) !== 'spec.md') return;
 
   const feature = readJson(path.join(path.dirname(file), 'feature.json'));
@@ -92,6 +96,44 @@ function guard(input) {
         'If a scenario is wrong, stop and ask the spec owner; they can change it at the spec station.\n',
     );
     process.exit(2);
+  }
+}
+
+/**
+ * Tests a person owns (review.lockedTests globs, e.g. tests/acceptance/**) can't be
+ * changed or deleted by an agent while any feature is being built, verified or
+ * reviewed, so a failing test gets fixed in the code, not in the test. Adding new
+ * files there is fine. The shell check is best effort: it looks for a locked path
+ * next to a command that writes or deletes.
+ */
+function lockedTests(tool, ti, file) {
+  const globs = reviewConfig(readJson(path.join(root, '.buildline', 'buildline.json'))).lockedTests;
+  if (!globs.length) return;
+  const busy = features().find((f) => ['build', 'verify', 'review'].includes(f.data.status));
+  if (!busy) return;
+  const res = globs.map(globToRegex);
+  const locked = (p) => {
+    const abs = path.resolve(root, p);
+    const rel = path.relative(root, abs).split(path.sep).join('/');
+    return !rel.startsWith('..') && fs.existsSync(abs) && res.some((re) => re.test(rel)) ? rel : null;
+  };
+  const why = (rel) =>
+    `buildline guard: ${rel} is a locked test (review.lockedTests in .buildline/buildline.json) and ${busy.data.id} is in "${busy.data.status}". ` +
+    'Make the code pass it rather than changing the test. If the test itself is wrong, stop and ask the person who owns it. New test files are fine.';
+  if (file && ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(tool)) {
+    const rel = locked(file);
+    if (rel) deny(why(rel));
+  }
+  if (tool !== 'Bash') return;
+  // Per command segment: a redirect's target, or every path in a segment that writes or deletes.
+  const writes = /(^|\s)(rm|mv|cp|truncate|tee|unlink)\s|sed\s+(-[a-zA-Z]*\s+)*-i|perl\s+-[a-z]*i|git\s+(rm|checkout|restore)\b|writeFile|unlinkSync|rmSync/;
+  for (const seg of String(ti.command || '').split(/;|&&|\|\||\||\n/)) {
+    const targets = [...seg.matchAll(/(?:^|[^0-9&>])>>?\s*([^\s;|&<>]+)/g)].map((m) => m[1]);
+    if (writes.test(seg)) targets.push(...seg.split(/[\s'"`()<>,]+/));
+    for (const word of targets) {
+      const rel = word && /\.\w+$|\//.test(word) ? locked(word) : null;
+      if (rel) deny(why(rel));
+    }
   }
 }
 

@@ -8,7 +8,8 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import pc from 'picocolors';
-import { listFeatures, findFeature, createFeature, approve, setStatus, reopenFeature, nextAction, readSessions, liveState } from './features.js';
+import { listFeatures, findFeature, createFeature, approve, setStatus, reopenFeature, nextAction, readSessions, liveState, causeProblem, CAUSES } from './features.js';
+import { flow, causes, waits, waitingOnPeople, returnsOf, REMEDY } from './insights.js';
 import { AUTONOMY, VERSION } from './install.js';
 import { goalFor } from './cli.js';
 
@@ -38,12 +39,11 @@ function state(root, opts = {}) {
   if (opts.sound === false) config.sound = false;
   const sessions = readSessions(root);
   const all = listFeatures(root);
-  const features = all.map(({ path: _p, ...f }) => ({
-    ...f,
-    next: nextAction({ ...f, path: _p }, config.autonomy, all),
-    live: liveState(f, sessions),
-    goal: goalFor(f),
-  }));
+  const features = all.map(({ path: _p, ...f }) => {
+    const next = nextAction({ ...f, path: _p }, config.autonomy, all);
+    const live = liveState(f, sessions);
+    return { ...f, next, live, goal: goalFor(f), returns: returnsOf(f), waits: waits(f, { waitingNow: waitingOnPeople(f, next, live) }) };
+  });
   const contextDir = path.join(root, '.buildline', 'context');
   const context = fs.existsSync(contextDir)
     ? fs.readdirSync(contextDir).filter((f) => f.endsWith('.md')).map((f) => {
@@ -52,7 +52,9 @@ function state(root, opts = {}) {
       })
     : [];
   context.push({ name: 'principles', path: '.buildline/principles.md', todo: false });
-  return { version: VERSION, config, autonomyLabel: AUTONOMY[config.autonomy]?.label, features, context };
+  const why = causes(all);
+  const insights = { flow: flow(all), causes: why.map((c) => ({ ...c, remedy: REMEDY[c.cause] })), unknown: why.unknown, total: why.total, meanings: CAUSES };
+  return { version: VERSION, config, autonomyLabel: AUTONOMY[config.autonomy]?.label, features, context, insights };
 }
 
 const readBody = (req) =>
@@ -121,7 +123,11 @@ export function serve(root, opts = {}) {
         const body = JSON.parse(await readBody(req));
         if (m[2] === 'approve') approve(f, body.stage, body.by);
         else if (m[2] === 'reopen') reopenFeature(f, body.status, body.note);
-        else setStatus(f, body.status, body.note);
+        else {
+          const bad = causeProblem(f.status, body.status, body.cause ?? null);
+          if (bad) return send(400, { error: bad });
+          setStatus(f, body.status, body.note, { cause: body.cause });
+        }
         return send(200, { ok: true });
       }
       send(404, { error: 'Not found' });

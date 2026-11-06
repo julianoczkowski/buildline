@@ -27,6 +27,7 @@ Specs are written for one change; the context files carry what lasts. Update the
 - `.buildline/context/design.md`: new components, patterns or tokens introduced.
 - `.buildline/context/product.md`: new capabilities and glossary terms.
 - `AGENTS.md` (outside the Buildline block) or `.buildline/principles.md`: any **recurring** mistake an agent made during this feature that a one-line rule would have prevented. Keep these lean; delete rules that no longer earn their place.
+- **Where the line leaks:** run `npx buildline insights`. If one cause keeps coming up (two or more returns), propose the fix it suggests to the person: a line in the spec template or `principles.md` for `spec`, the design template for `design`, a gate for `process`. Make the change only if they agree.
 - `REVIEW.md`: if review raised the same kind of false alarm or nit more than once, add a line to its *Don't flag* or *Skip* list; if review missed something that verify or a person caught, add it to *Always flag*.
 
 ## 4. Close

@@ -7,7 +7,8 @@
 //
 //   node .buildline/bin/feature.mjs new "<title>" [--type fix|feature|epic] [--parent <id>]
 //   node .buildline/bin/feature.mjs show <id>
-//   node .buildline/bin/feature.mjs move <id> <station> [--note "…"]
+//   node .buildline/bin/feature.mjs move <id> <station> [--note "…"] [--cause spec|design|plan|process|code]
+//                                   (--cause is required when verify or review sends work back)
 //   node .buildline/bin/feature.mjs task <id> add "<title>" [--verify "…"] [--covers R1,A2] [--parallel]
 //   node .buildline/bin/feature.mjs task <id> <T1> pass|fail [--note "what you ran and saw"]
 //   node .buildline/bin/feature.mjs log <id> "<note>"
@@ -25,6 +26,27 @@ export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 're
 const TYPES = ['fix', 'feature', 'epic'];
 const STAGES = ['spec', 'design', 'plan', 'sensitive'];
 const now = () => new Date().toISOString();
+
+// ---- root cause of a return ---------------------------------------------------------
+// When verify or review sends work back, say where the problem started. Over time this
+// shows where the line leaks (`buildline insights`), so the fix goes where it belongs.
+export const CAUSES = {
+  spec: 'the spec was wrong, vague or missing a case',
+  design: 'the design missed a state, an edge or a contract',
+  plan: 'the plan left something out or ordered it badly',
+  process: 'a gate, tool or check should have caught it earlier',
+  code: 'the spec and design were right; the code was wrong',
+};
+/** A move backwards out of verify or review: work sent back, which needs a cause. */
+export const isReturn = (from, to) => ['verify', 'review'].includes(from) && STATIONS.indexOf(to) >= 0 && STATIONS.indexOf(to) < STATIONS.indexOf(from);
+/** Why `cause` isn't acceptable for a move from → to, or null. */
+export function causeProblem(from, to, cause) {
+  if (cause != null && cause !== true && !CAUSES[cause]) return `Unknown cause "${cause}". Use one of: ${Object.keys(CAUSES).join(', ')}.`;
+  if (isReturn(from, to) && (cause == null || cause === true)) {
+    return `Say where the problem started when ${from} sends work back: --cause ${Object.keys(CAUSES).join('|')}. ` + Object.entries(CAUSES).map(([k, v]) => `${k}: ${v}`).join('; ') + '.';
+  }
+  return null;
+}
 
 /** Approvals a feature needs before it may leave a station, by autonomy level. Fixes need none. */
 export function requiredApproval(station, autonomy, type) {
@@ -118,7 +140,12 @@ export const DEFAULT_MAX_ROUNDS = 3;
 
 export function reviewConfig(config) {
   const r = config?.review || {};
-  return { sensitive: Array.isArray(r.sensitive) ? r.sensitive : DEFAULT_SENSITIVE, maxRounds: r.maxRounds ?? DEFAULT_MAX_ROUNDS };
+  return {
+    sensitive: Array.isArray(r.sensitive) ? r.sensitive : DEFAULT_SENSITIVE,
+    maxRounds: r.maxRounds ?? DEFAULT_MAX_ROUNDS,
+    // Tests a person owns (acceptance tests, contract tests): agents can add files here but not change existing ones mid-build.
+    lockedTests: Array.isArray(r.lockedTests) ? r.lockedTests : [],
+  };
 }
 
 /** `src/**`, `*.yml`, `billing/` style globs to a RegExp over repo-relative paths. */
@@ -222,10 +249,21 @@ const configOf = (root) => {
   }
 };
 const autonomyOf = (root) => configOf(root).autonomy ?? 2;
-const record = (data, station, note) => (data.history = [...(data.history || []), { at: now(), station, note }]);
+const record = (data, station, note, extra = {}) => (data.history = [...(data.history || []), { at: now(), station, note, ...extra }]);
 
-export function move(root, ref, to, { note, force = false } = {}) {
+/** Count a cause on the feature. Shared with the CLI and the dashboard. */
+export function countCause(data, cause) {
+  if (!cause || cause === true) return;
+  const causes = { ...data.metrics?.causes, [cause]: (data.metrics?.causes?.[cause] || 0) + 1 };
+  data.metrics = { ...data.metrics, causes };
+}
+
+export function move(root, ref, to, { note, force = false, cause = null } = {}) {
   const f = load(root, ref);
+  // An unknown cause is always refused; a missing one only without --force.
+  const missing = cause == null || cause === true;
+  const bad = causeProblem(f.data.status, to, cause);
+  if (bad && !(force && missing)) throw new Error(bad);
   // Even --force can't move a dropped feature: reopening it is a decision of its own.
   const blocker = f.data.status === DROPPED || to === DROPPED || !force ? moveBlocker(f.data, to, autonomyOf(root), f.data.type === 'epic' ? loadAll(root) : null) : null;
   if (blocker) throw new Error(blocker);
@@ -245,11 +283,13 @@ export function move(root, ref, to, { note, force = false } = {}) {
   if (['verify', 'review'].includes(from) && to === 'build') f.data.metrics = { ...f.data.metrics, reworks: (f.data.metrics?.reworks || 0) + 1 };
   if (from === 'review' && to === 'build') f.data.metrics = { ...f.data.metrics, reviewRounds: (f.data.metrics?.reviewRounds || 0) + 1 };
   if (to === 'done') f.data.metrics = { ...f.data.metrics, shippedAt: now() };
+  const why = cause && cause !== true ? cause : null;
+  countCause(f.data, why);
   f.data.status = to;
   f.data.blocked = null;
   f.data.awaiting = null;
   const closing = f.data.type === 'epic' && to === 'done' ? `Closed: ${epicNote(epicSummary(f.data, loadAll(root)))}` : null;
-  record(f.data, to, [note || `Moved from ${from} to ${to}`, closing].filter(Boolean).join('. '));
+  record(f.data, to, [note || `Moved from ${from} to ${to}`, why && `Cause: ${why}`, closing].filter(Boolean).join('. '), { from, ...(why ? { cause: why } : {}) });
   const rounds = f.data.metrics?.reviewRounds || 0;
   const { maxRounds } = reviewConfig(config);
   if (from === 'review' && to === 'build' && maxRounds && rounds >= maxRounds) {
@@ -398,7 +438,7 @@ function main(argv) {
     case 'show':
       return console.log(JSON.stringify(load(root, ref).data, null, 2));
     case 'move':
-      return console.log('✔ ' + summary(move(root, ref, rest[0], { note: opts.note, force: !!opts.force })));
+      return console.log('✔ ' + summary(move(root, ref, rest[0], { note: opts.note, force: !!opts.force, cause: opts.cause ?? null })));
     case 'approve':
       return console.log('✔ ' + summary(approve(root, ref, rest[0], opts.by)));
     case 'task': {

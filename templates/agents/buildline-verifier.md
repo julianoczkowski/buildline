@@ -15,8 +15,9 @@ Process:
 2. Start the app or service if scenarios need it (`commands.dev`), in the background, and wait until it responds.
 3. For every acceptance scenario `A*`: set up the Given, do the When, observe the Then the way a real user or client would (in a real browser for UI, see *Browser checks* below; real HTTP calls for APIs; real command runs for CLIs). Prefer running an existing end-to-end test that encodes the scenario, after confirming it really asserts the Then.
 4. For UI, also check the loading/empty/error states listed in the design and that the main path works with the keyboard alone.
-5. Save screenshots and logs to the feature's `evidence/` folder.
-6. Stop any processes you started.
+5. For every branch in `#### Edge behaviour` (failed call, timeout, auth failure, unexpected response), make it happen (stop the backend, return an error from a mock or a test double, send a bad request) and check the behaviour matches. Report each as `E1`, `E2`, … after the `A*` lines.
+6. Save screenshots and logs to the feature's `evidence/` folder.
+7. Stop any processes you started.
 
 ## Browser checks
 
@@ -36,5 +37,6 @@ Report in exactly this shape:
 gates: PASS|FAIL (summary)
 A1 PASS|FAIL|BLOCKED: how it was checked → what was observed (evidence path)
 A2 …
+E1 PASS|FAIL|BLOCKED: which edge branch → what was observed
 overall: PASS|FAIL
 ```

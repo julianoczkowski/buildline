@@ -13,10 +13,11 @@ Global: `-C, --cwd <dir>` runs in another directory · `-h, --help` · `-v, --ve
 | `status` (`st`) | Terminal board: station, task progress, who it's waiting on, next command. | `--json` |
 | `new "<title>"` | Open a feature. Prompts for anything missing. | `-t/--type fix\|feature\|epic`, `--owner <name>`, `--parent <id>` |
 | `approve <id> <stage>` | Record a human approval for `spec`, `design`, `plan`, or `sensitive` (a change to [sensitive paths](concepts.md#review), tied to the current commit). | `--by <name>` (defaults to `git config user.name`) |
-| `move <id> <station>` | Move a feature to a station (`spec … done`). | `--note "<why>"` |
+| `move <id> <station>` | Move a feature to a station (`spec … done`). Sending work back from verify or review needs a cause: where the problem started. | `--note "<why>"`, `--cause spec\|design\|plan\|process\|code` |
+| `insights` | Where work flows back and from which station, the [root causes](concepts.md#returns-and-root-causes) recorded for it, and how long features waited on people. | `--json` |
 | `drop <id> "<why>"` | Record that a feature won't ship. Clears any blocker; the board, status and watch stop counting it. | `--by <name>`, `--branch <name>` |
 | `reopen <id> <station>` | Put a dropped feature back at a station. Approvals and tasks stay; gates still apply going forward. | `--note "<why>"` |
-| `watch` (`top`) | Live view of the line in the terminal: tracks, models, tasks, events. Keys: `↑↓` select, `⏎` open the station, `a` approve, `u` dashboard, `s` shipped and dropped, `e` hide/show events, `m` mute, `q` quit. | `--shipped`, `--once`, `--no-intro`, `-q/--quiet` |
+| `watch` (`top`) | Live view of the line in the terminal: tracks, models, tasks, events. Keys: `↑↓` select, `⏎` open the station, `a` approve, `u` dashboard, `s` shipped and dropped, `c` uncommitted changes, `f` flow of work and causes, `e` hide/show the panel, `m` mute, `q` quit. | `--shipped`, `--once`, `--no-intro`, `-q/--quiet` |
 | `ui` (`dashboard`) | Local web dashboard on `127.0.0.1:4545`. | `--port <n>`, `--no-open`, `-q/--quiet` |
 | `step <station> [id]` | Open a station in the CLI and model it's routed to ([models](models.md)). | `-m/--model <m>`, `--headless`, `--print` |
 | `models` | Pick models per station or phase (interactive). `models set <station\|phase> <model>`, `models check` to see what each resolves to. | `--json` |
@@ -44,6 +45,7 @@ Agents record feature state with the feature script (you don't need to; run it w
 ```bash
 node .buildline/bin/feature.mjs new "<title>" --type fix
 node .buildline/bin/feature.mjs move <id> <station> --note "…"     # refuses to skip a required approval
+node .buildline/bin/feature.mjs move <id> build --cause spec       # verify or review sending work back: say where it started
 node .buildline/bin/feature.mjs task <id> add "<title>" --covers A1 --verify "…"
 node .buildline/bin/feature.mjs task <id> T1 pass --note "what ran, what was seen"
 node .buildline/bin/feature.mjs block <id> "<question>"    /   unblock <id> --note "<answer>"

@@ -29,6 +29,23 @@ Optional: for visual work, build a quick throwaway prototype (a single HTML file
 2. **Changes**: modules and files to add or change, data model or schema changes, API contracts (request/response shapes), events.
 3. **Risks**: migrations, performance, security, backwards compatibility, feature flags. How each is mitigated.
 4. **Test strategy**: which acceptance scenarios are covered by unit, integration or end-to-end tests, and how they'll be run.
+5. **Edge behaviour** (`#### Edge behaviour`): for each action that calls an API, a service or another module, what happens on success, invalid input, an auth failure, a timeout or failure, and a response in an unexpected shape. A small table, or a Mermaid sequence diagram with `alt` branches, is enough:
+
+   ```mermaid
+   sequenceDiagram
+     UI->>API: POST /carts
+     alt 201
+       API-->>UI: cart → show "Saved"
+     else 422
+       API-->>UI: errors → inline field messages, keep input
+     else 401
+       API-->>UI: → sign-in, then retry
+     else timeout / 5xx / unexpected body
+       API-->>UI: → "Couldn't save. Try again", keep input, log it
+     end
+   ```
+
+   Most bugs that reach verify and review live here, in the branches nobody wrote down. The verifier tests every branch listed.
 
 Follow the conventions in `architecture.md`. If you're breaking one, say so explicitly.
 

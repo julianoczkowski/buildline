@@ -124,7 +124,7 @@ export function buildEntries(root, config) {
       const body = `${handoff}\nRead \`.buildline/stations/${station}.md\` now and follow it step by step. It is the single source of truth for this station, shared with every other agent in the project.\n\nArguments: $ARGUMENTS\n`;
       add(`.claude/skills/${name}/SKILL.md`, front.join('\n') + '\n' + body);
     }
-    const subagentStation = { ...Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st])), 'buildline-finding-checker.md': 'review' };
+    const subagentStation = { ...Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st])), 'buildline-finding-checker.md': 'review', 'buildline-try-run.md': 'plan' };
     for (const f of fs.readdirSync(path.join(templatesDir, 'agents'))) {
       const m = subagentStation[f] ? modelFor(config, subagentStation[f]) : null;
       // Subagents follow the session's model (`model: inherit`) unless buildline.json picks one for their station.

@@ -26,7 +26,7 @@ Managed files are tracked by content hash in `.buildline/manifest.json`. If you 
 
 **Add project rules.** Write them in `AGENTS.md` *outside* the Buildline block, or in `principles.md` if specs and reviews should be checked against them. For path-specific rules in Claude Code, use `.claude/rules/*.md` with `paths:` frontmatter.
 
-**Tune review.** Edit `REVIEW.md`: what failure looks like in each area, what to always flag, what to skip, the nit cap. Mark paths that always need a person in `review.sensitive` in `buildline.json`, and change the round limit with `review.maxRounds`. See [Review](concepts.md#review).
+**Tune review.** Edit `REVIEW.md`: what failure looks like in each area, what to always flag, what to skip, the nit cap. Mark paths that always need a person in `review.sensitive` in `buildline.json`, change the round limit with `review.maxRounds`, and lock tests a person owns with `review.lockedTests`. See [Review](concepts.md#review).
 
 **Change models.** Run `npx buildline models` to pick, or `npx buildline models set <station|phase> <model>`. Stations can run on any Claude model, Codex or Gemini. See [Models per station](models.md).
 

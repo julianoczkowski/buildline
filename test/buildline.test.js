@@ -258,7 +258,7 @@ test('feature script: tasks, log, block and real timestamps', () => {
   for (const h of f.history.slice(1)) assert.ok(Math.abs(new Date(h.at) - before) < 60e3, `real time, not ${h.at}`);
   script(root, 'unblock', '1', '--note', 'GBP');
   script(root, 'move', '1', 'verify');
-  script(root, 'move', '1', 'build');
+  script(root, 'move', '1', 'build', '--cause', 'code');
   f = featureJson(root, '001');
   assert.equal(f.blocked, null);
   assert.equal(f.metrics.reworks, 1);
@@ -483,11 +483,11 @@ test('review: after three rounds back to build, a person decides how to go on', 
   script(root, 'new', 'Thing');
   script(root, 'move', '1', 'review', '--force');
   for (let i = 1; i <= 2; i++) {
-    script(root, 'move', '1', 'build', '--note', 'findings');
+    script(root, 'move', '1', 'build', '--note', 'findings', '--cause', 'code');
     assert.equal(findFeature(root, '1').blocked, null);
     script(root, 'move', '1', 'review', '--force');
   }
-  script(root, 'move', '1', 'build', '--note', 'findings');
+  script(root, 'move', '1', 'build', '--note', 'findings', '--cause', 'code');
   const f = findFeature(root, '1');
   assert.equal(f.metrics.reviewRounds, 3);
   assert.match(f.blocked, /sent this back 3 times/);
@@ -601,4 +601,95 @@ test('watch: approve moves the feature on, changes lists uncommitted files', asy
   assert.match(out, /CHANGES · \d+ uncommitted/);
   assert.match(out, /U notes\.txt/);
   assert.equal(workingChanges(tmp()), null);
+});
+
+test('returns: verify and review say where the problem started, and insights adds it up', async () => {
+  const { transitions, flow, causes, waits } = await import('../src/insights.js');
+  const root = tmp();
+  install(root, { autonomy: 4 });
+  const cli = (...args) => spawnSync(process.execPath, [bin, ...args, '-C', root], { encoding: 'utf8' });
+  script(root, 'new', 'Saved carts');
+  script(root, 'move', '1', 'verify', '--force');
+  const refused = script(root, 'move', '1', 'build');
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /--cause spec\|design\|plan\|process\|code/);
+  assert.equal(script(root, 'move', '1', 'build', '--cause', 'vibes').status, 1);
+  assert.equal(script(root, 'move', '1', 'build', '--cause', 'spec').status, 0);
+  script(root, 'move', '1', 'review', '--force');
+  assert.equal(cli('move', '1', 'design').status, 1); // the CLI asks for a cause too
+  assert.equal(cli('move', '1', 'design', '--cause', 'design').status, 0);
+  let f = featureJson(root, '001');
+  assert.deepEqual(f.metrics.causes, { spec: 1, design: 1 });
+  assert.deepEqual(f.history.filter((h) => h.cause).map((h) => [h.from, h.station, h.cause]), [['verify', 'build', 'spec'], ['review', 'design', 'design']]);
+  // Moving forward, or back from an earlier station, needs no cause.
+  assert.equal(script(root, 'move', '1', 'spec').status, 0);
+
+  // Older history has no `from`: approvals recorded under another stage's name aren't moves.
+  const old = { type: 'feature', history: [{ station: 'new' }, { station: 'spec', note: 'spec approved by Ann' }, { station: 'design', note: 'Moved' }, { station: 'spec', note: 'spec approved by Ann' }, { station: 'plan', note: 'Moved' }] };
+  assert.deepEqual(transitions(old).map((t) => `${t.from}>${t.to}`), ['spec>design', 'design>plan']);
+
+  const all = listFeatures(root);
+  const rows = Object.fromEntries(flow(all).map((r) => [r.station, r]));
+  assert.deepEqual([rows.verify.back, rows.verify.backTo, rows.review.backTo, rows.build.returned], [1, { build: 1 }, { design: 1 }, 1]);
+  assert.deepEqual(causes(all).map((c) => [c.cause, c.count]), [['spec', 1], ['design', 1]]);
+
+  // Waiting on people: the gap before an approval, a blocked span, and the wait to merge.
+  const t0 = Date.parse('2026-01-01T00:00:00Z');
+  const at = (h) => new Date(t0 + h * 3600e3).toISOString();
+  const w = waits({ status: 'done', created: at(0), metrics: { shippedAt: at(20) }, history: [
+    { at: at(0), station: 'new', note: 'Opened' }, { at: at(2), station: 'spec', note: 'Spec written' },
+    { at: at(5), station: 'spec', note: 'spec approved by Ann' }, { at: at(5), station: 'design', from: 'spec', note: 'Moved' },
+    { at: at(6), station: 'design', note: 'Blocked: which currency?' }, { at: at(8), station: 'design', note: 'Unblocked: GBP' },
+    { at: at(12), station: 'ship', from: 'design', note: 'PR open' }, { at: at(20), station: 'done', from: 'ship', note: 'merged' },
+  ] });
+  assert.deepEqual([w.total, w.people, w.parts.approvals, w.parts.blocked, w.parts.merge].map((x) => x / 3600e3), [20, 13, 3, 2, 8]);
+
+  const out = cli('insights');
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /Flow of work/);
+  assert.match(out.stdout, /verify .*↩ build 1/);
+  assert.match(out.stdout, /Why work came back/);
+  assert.match(out.stdout, /spec .* 1 /);
+  const json = JSON.parse(cli('insights', '--json').stdout);
+  assert.equal(json.causes.total, 2);
+
+  const { snapshot } = await import('../src/tui.js');
+  const frame = snapshot(root, { width: 120, panel: 'flow' }).replace(/\x1b\[[0-9;]*m/g, '');
+  assert.match(frame, /FLOW · 2 returns/);
+  assert.match(frame, /sent back 2× +\(spec 1, design 1\)/);
+});
+
+test('locked tests: agents can add files under review.lockedTests but not change existing ones mid-build', () => {
+  const root = tmp();
+  install(root, { autonomy: 4 });
+  const cfgPath = path.join(root, '.buildline/buildline.json');
+  const cfg = JSON.parse(read(root, '.buildline/buildline.json'));
+  cfg.review = { ...cfg.review, lockedTests: ['tests/acceptance/**'] };
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+  write(root, 'tests/acceptance/cart.test.js', 'test()');
+  const guard = (input) => spawnSync(process.execPath, [path.join(root, '.buildline/bin/hook.mjs'), 'guard'], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PROJECT_DIR: root }, encoding: 'utf8' });
+  const edit = { tool_name: 'Edit', tool_input: { file_path: path.join(root, 'tests/acceptance/cart.test.js'), old_string: 'test()', new_string: 'test.skip()' } };
+  assert.equal(guard(edit).status, 0); // nothing is being built
+  script(root, 'new', 'Saved carts');
+  script(root, 'move', '1', 'build', '--force');
+  const denied = guard(edit);
+  assert.equal(denied.status, 2);
+  assert.match(denied.stderr, /tests\/acceptance\/cart\.test\.js is a locked test/);
+  assert.equal(guard({ tool_name: 'Write', tool_input: { file_path: path.join(root, 'tests/acceptance/new.test.js'), content: 'x' } }).status, 0);
+  assert.equal(guard({ tool_name: 'Bash', tool_input: { command: 'rm tests/acceptance/cart.test.js' } }).status, 2);
+  assert.equal(guard({ tool_name: 'Bash', tool_input: { command: 'echo x > tests/acceptance/cart.test.js' } }).status, 2);
+  assert.equal(guard({ tool_name: 'Bash', tool_input: { command: 'npx vitest tests/acceptance/cart.test.js 2>&1 | tee out.log' } }).status, 0);
+  assert.equal(guard({ tool_name: 'Edit', tool_input: { file_path: path.join(root, 'src/cart.js'), old_string: 'a', new_string: 'b' } }).status, 0);
+});
+
+test('try run: the subagent is installed and the plan station and spec template use it', () => {
+  const root = tmp();
+  install(root, { agents: ['claude'] });
+  assert.match(read(root, '.claude/agents/buildline-try-run.md'), /name: buildline-try-run/);
+  assert.match(read(root, '.buildline/stations/plan.md'), /buildline-try-run/);
+  assert.match(read(root, '.buildline/stations/design.md'), /Edge behaviour/);
+  script(root, 'new', 'Saved carts');
+  const spec = read(root, `.buildline/features/${fs.readdirSync(path.join(root, '.buildline/features')).find((d) => /^\d/.test(d))}/spec.md`);
+  assert.match(spec, /^## Try run$/m);
+  assert.match(spec, /^#### Edge behaviour$/m);
 });

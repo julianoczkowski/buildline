@@ -3,9 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { render, templatesDir } from './render.js';
-import { moveBlocker, sensitiveBlocker, approval, reviewConfig, DROPPED, isResolved, epicSummary, epicNote, dropData, reopenData } from '../templates/bin/feature.mjs';
+import { moveBlocker, sensitiveBlocker, approval, reviewConfig, DROPPED, isResolved, epicSummary, epicNote, dropData, reopenData, CAUSES, isReturn, causeProblem, countCause } from '../templates/bin/feature.mjs';
 
-export { moveBlocker, sensitiveBlocker, reviewConfig, DROPPED, isResolved, epicSummary, epicNote };
+export { moveBlocker, sensitiveBlocker, reviewConfig, DROPPED, isResolved, epicSummary, epicNote, CAUSES, isReturn, causeProblem };
 
 export const STATIONS = ['new', 'spec', 'design', 'plan', 'build', 'verify', 'review', 'ship', 'done'];
 export const TYPES = ['fix', 'feature', 'epic'];
@@ -103,12 +103,17 @@ export function createFeature(root, { title, type = 'feature', owner = null, par
   return { ...feature, dir: `${id}-${slug}`, path: dir };
 }
 
-export function setStatus(feature, status, note) {
+/** Move a feature. `cause` (spec|design|plan|process|code) says why verify or review sent it back. */
+export function setStatus(feature, status, note, { cause = null } = {}) {
   if (feature.status === DROPPED) throw new Error(`${feature.id} is dropped. Reopen it at a station instead.`);
   if (!STATIONS.includes(status)) throw new Error(`Status must be one of: ${STATIONS.join(', ')}`);
+  if (cause && !CAUSES[cause]) throw new Error(`Unknown cause "${cause}". Use one of: ${Object.keys(CAUSES).join(', ')}.`);
+  const from = feature.status;
   feature.status = status;
   if (status === 'done') feature.metrics = { ...feature.metrics, shippedAt: now() };
-  feature.history = [...(feature.history || []), { at: now(), station: status, note: note || `Moved to ${status}` }];
+  countCause(feature, cause);
+  const text = [note || `Moved to ${status}`, cause && `Cause: ${cause}`].filter(Boolean).join('. ');
+  feature.history = [...(feature.history || []), { at: now(), station: status, note: text, from, ...(cause ? { cause } : {}) }];
   return saveFeature(feature);
 }
 
