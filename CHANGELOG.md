@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 · 2026-11-06
 Ideas from [the model keeps the fighter flying](https://www.software-leader.com/blogs/the-model-keeps-the-fighter-flying) series that need nothing new beyond what Buildline already records:
 - **Root cause on every return.** When verify or review sends work back, the move says where the problem started: `--cause spec|design|plan|process|code`. `feature.mjs move` and `npx buildline move` ask for it; the dashboard asks when you move a feature back.
 - **`npx buildline insights`**: the flow of work (how often each station passes work on or sends it back, and where to), why work came back, and how long features waited on people. When one cause keeps coming up, it suggests where the fix belongs; the ship station proposes it and a person decides.
