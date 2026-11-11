@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 · 2026-11-11
 Review techniques from Google's [Elephant-Goldfish Model](https://github.com/google/elephant-goldfish-model) (Apache 2.0), fitted to the line:
 - **Builds stay inside the plan.** Each task lists the files it creates, changes or deletes (`task add … --files "a,b"`). While a feature is in build, the Claude Code hook refuses edits to any other file. If one really has to change, the agent adds it with a reason, `feature.mjs scope <id> add <path> --why "…"`, and review checks every addition against the diff. Plans without files aren't enforced; `review.planScope: false` turns it off.
 - **The spec critic says back what it read** before its findings: what the spec asks for and what it assumes exists today. The person approving the spec compares that with what they meant; a part it can't paraphrase is a must-fix.
