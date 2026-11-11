@@ -44,7 +44,7 @@ If you get stuck on the same task after two genuinely different attempts, or you
 
 - Never change a filled-in `## Acceptance` in `spec.md` (a fix may fill in an empty one), never delete or weaken a test to make it pass, never disable a gate. If you believe the spec or a test is wrong, stop and explain.
 - Never mark a task as passing without running its verification in this session.
-- Stay inside the feature's scope. Note unrelated problems you find in `progress.md` under "Noticed" instead of fixing them.
+- Stay inside the feature's scope. Edit only the files the tasks list (`node .buildline/bin/feature.mjs scope <id>` prints them); the guard refuses others while the feature is in build. If a file really has to change for this feature, add it with the reason the plan missed it: `node .buildline/bin/feature.mjs scope <id> add <path> --why "<reason>"`. At autonomy L1, ask the person first. Note unrelated problems in `progress.md` under "Noticed" instead of fixing them.
 - Don't commit secrets, generated artefacts or debugging leftovers.
 
 ## 4. End of session (always)

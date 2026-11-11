@@ -34,6 +34,7 @@ If the person said what they want (`$ARGUMENTS` or their message), route it:
 | check if something works | `verify` |
 | review a change | `review` |
 | open a PR / release / wrap up | `ship` |
+| check whether shipped specs or the context files still match the code | `drift` |
 
 If onboarding is missing, recommend `onboard` first but don't force it for a quick fix.
 

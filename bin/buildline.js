@@ -21,6 +21,7 @@ ${pc.bold('Commands')}
   ${pc.cyan('drop')} <id> "<why>"         record that a feature won't ship  ${pc.dim('--by <name>  --branch <name>')}
   ${pc.cyan('reopen')} <id> <station>    put a dropped feature back on the line  ${pc.dim('--note "<why>"')}
   ${pc.cyan('insights')}                 where work flows back, why, and time spent waiting on people  ${pc.dim('--json')}
+  ${pc.cyan('drift')}                    shipped specs and context files whose code changed since  ${pc.dim('--json')}
   ${pc.cyan('watch')}                    live view of the line in your terminal  ${pc.dim('--shipped  --once  --no-intro  --quiet')}
   ${pc.cyan('ui')}                       open the dashboard in your browser  ${pc.dim('--port <n>  --no-open  --quiet')}
   ${pc.cyan('step')} <station> [id]      open a station in the CLI and model set for it  ${pc.dim('--model <m>  --headless  --print')}
@@ -118,6 +119,8 @@ async function main() {
       return cli.reopenCommand(root, rest[0], rest[1], o);
     case 'insights':
       return cli.insights(root, o);
+    case 'drift':
+      return cli.drift(root, o);
     case 'watch':
     case 'top':
     case 'tui':

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+Review techniques from Google's [Elephant-Goldfish Model](https://github.com/google/elephant-goldfish-model) (Apache 2.0), fitted to the line:
+- **Builds stay inside the plan.** Each task lists the files it creates, changes or deletes (`task add … --files "a,b"`). While a feature is in build, the Claude Code hook refuses edits to any other file. If one really has to change, the agent adds it with a reason, `feature.mjs scope <id> add <path> --why "…"`, and review checks every addition against the diff. Plans without files aren't enforced; `review.planScope: false` turns it off.
+- **The spec critic says back what it read** before its findings: what the spec asks for and what it assumes exists today. The person approving the spec compares that with what they meant; a part it can't paraphrase is a must-fix.
+- **Simplicity check at design.** The new `buildline-zoom-out` subagent reads the technical design with no other context, searches the code for things it would rebuild, and flags over-building, logic in the wrong layer, and alternatives rejected without a concrete reason.
+- **Agents weigh findings instead of obeying them.** Each finding from a reviewing subagent is fixed, contested with evidence the reviewer could have read, asked of a person, or declined. One re-check after fixing, then what's left goes to the person rather than another round.
+- **A reviewer that failed didn't review.** A verifier or reviewer that errors or times out is retried once, then recorded as *not run*, which never counts as a pass.
+- **The try run checks files too:** tasks without files, files nobody listed, and decisions a task leaves to the builder.
+- **`npx buildline drift` and `/buildline-drift`.** Lists shipped features whose files later commits changed (and by which features) and context files that have fallen behind; the new `buildline-drift-checker` subagent compares each with the code and reports only differences, and a person decides whether the doc or the code changes.
+- Run `npx buildline@latest update` to get the new playbooks, subagents, skill, script and hook.
+
 ## 0.12.0 · 2026-11-06
 Ideas from [the model keeps the fighter flying](https://www.software-leader.com/blogs/the-model-keeps-the-fighter-flying) series that need nothing new beyond what Buildline already records:
 - **Root cause on every return.** When verify or review sends work back, the move says where the problem started: `--cause spec|design|plan|process|code`. `feature.mjs move` and `npx buildline move` ask for it; the dashboard asks when you move a feature back.

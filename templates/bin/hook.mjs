@@ -7,7 +7,9 @@
 //                  feature is in build/verify/review, so agents can't move the goalposts,
 //                  hand edits to feature.json (agents use .buildline/bin/feature.mjs), and
 //                  changes to existing locked tests (review.lockedTests) while a
-//                  feature is in build/verify/review: new test files are fine
+//                  feature is in build/verify/review: new test files are fine, and
+//                  edits to files outside the plan while a feature is in build
+//                  (each task lists its files; `feature.mjs scope <id> add` adds one)
 //   prompt / post / notify / stop / session-end
 //                  heartbeat: which session works on which feature and whether
 //                  it is working, running something in the background, or
@@ -16,7 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { reviewConfig, globToRegex } from './feature.mjs';
+import { reviewConfig, globToRegex, planScope, inScope } from './feature.mjs';
 
 const root = process.env.CLAUDE_PROJECT_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const featuresDir = path.join(root, '.buildline', 'features');
@@ -77,6 +79,7 @@ function guard(input) {
     deny(`buildline guard: don't write feature.json from the shell. ${viaScript}`);
   }
   lockedTests(tool, ti, file);
+  outsidePlan(tool, file, input.session_id);
   if (!file || !file.startsWith(featuresDir + path.sep) || path.basename(file) !== 'spec.md') return;
 
   const feature = readJson(path.join(path.dirname(file), 'feature.json'));
@@ -135,6 +138,34 @@ function lockedTests(tool, ti, file) {
       if (rel) deny(why(rel));
     }
   }
+}
+
+/**
+ * While a feature is in build, an agent may only edit the files its plan names: each
+ * task's `files`, plus anything added with `feature.mjs scope <id> add <path> --why`.
+ * The feature is the one this session works on, or the only one in build. A plan that
+ * lists no files isn't enforced. Factory files under .buildline/ are always fine.
+ * Editor tools only: shell commands also write logs, caches and lockfiles.
+ */
+function outsidePlan(tool, file, sessionId) {
+  if (!file || !['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(tool)) return;
+  const rel = path.relative(root, file).split(path.sep).join('/');
+  if (rel.startsWith('..') || path.isAbsolute(rel) || rel.startsWith('.buildline/') || rel.startsWith('.git/')) return;
+  if (!reviewConfig(readJson(path.join(root, '.buildline', 'buildline.json'))).planScope) return;
+  const building = features().filter((f) => f.data.status === 'build');
+  if (!building.length) return;
+  const mine = readJson(path.join(sessionsDir, `${String(sessionId || '').replace(/[^\w-]/g, '')}.json`))?.feature;
+  const feature = mine ? building.find((f) => f.data.id === mine || f.dir.startsWith(`${mine}-`)) : building.length === 1 ? building[0] : null;
+  if (!feature) return;
+  const scope = planScope(feature.data);
+  if (!scope.length || inScope(scope, rel)) return;
+  const id = feature.data.id;
+  deny(
+    `buildline guard: ${rel} isn't in ${id}'s plan. While ${id} is in build, edit only the files its tasks list ` +
+      `(node .buildline/bin/feature.mjs scope ${id} prints them). If this file really needs to change for this feature, add it with a reason: ` +
+      `node .buildline/bin/feature.mjs scope ${id} add ${rel} --why "<why the plan missed it>". The reviewer reads every addition. ` +
+      'If it is unrelated, note it in progress.md under "Noticed" instead.',
+  );
 }
 
 // ---- heartbeat -------------------------------------------------------------------

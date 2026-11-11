@@ -38,7 +38,7 @@ A task only gets `"passes": true` after the gates pass **and** its own verificat
 
 ### Rules for agents
 
-1. **One feature, one task at a time.** Pick the first task with `"passes": false`, finish it, record evidence, commit, then move on.
+1. **One feature, one task at a time.** Pick the first task with `"passes": false`, finish it, record evidence, commit, then move on. During build, edit only the files the plan lists (`node .buildline/bin/feature.mjs scope <id>`); if another file really has to change, add it with a reason (`scope <id> add <path> --why "…"`) so the reviewer sees it.
 2. **Never weaken the checks.** Do not delete, skip, or loosen tests, acceptance scenarios or gates to make them pass; tests under `review.lockedTests` can't be changed at all during build. If a check is wrong, stop and say so. When verify or review sends work back, record where the problem started with `--cause`.
 3. **Never edit the `acceptance` section of a spec during build.** It belongs to the spec owner.
 4. **Leave a trail.** Append to `progress.md` at the end of every work session: what changed, what was verified, what is next.
@@ -51,3 +51,10 @@ A task only gets `"passes": true` after the gates pass **and** its own verificat
 10. **Respect model routing.** `models` in `buildline.json` says who runs each station.
     - **Another CLI** (e.g. `"review": "codex"`): hand it off with `npx buildline step <station> <id> --headless` and summarise the result instead of doing it yourself.
     - **Another Claude model** (e.g. `"spec": "fable"`): the station's slash command switches model by itself when the person types it. You can't switch models, and opening the station yourself keeps yours. So when the next station runs on a different model than you, end with "Next: type `/buildline-<station> <id>`, it runs on <model>." Don't ask the person to switch models first; if they ask you to run it on that model, tell them to type that command. For stations that don't need the person (build, verify, review, and in the autopilot loop), you may instead run `npx buildline step <station> <id> --headless`, which runs it on its model, and summarise the result.
+11. **Weigh what a reviewer says; don't just obey it.** For each finding from a subagent (spec critic, simplicity check, try run, reviewer), decide one of:
+    - **fix** it: the finding is right;
+    - **contest** it: it's wrong, and you can point at evidence the reviewer could have read (a file and symbol, or a line of the spec). "That was intentional" isn't evidence;
+    - **ask** the person: it's wrong, but the evidence is only in someone's head (a team convention, a decision made in a meeting). Don't fix it, and don't add text only to satisfy a reviewer that had no context;
+    - **decline** it: it's minor. Note it and move on.
+    Say which, in one line per finding, where the station's playbook records results. After fixing, re-run the same reviewer **once** to check the fixes; whatever is still open after that goes to the person as an open item, not into another round.
+    **A reviewer that failed didn't review.** If a subagent errors, times out or returns nothing, try once more. If it fails again, record it as *not run* (`feature.mjs log <id> "<reviewer>: not run (<why>)"`) and treat the check as not done: a verification or review without its report never counts as a pass.

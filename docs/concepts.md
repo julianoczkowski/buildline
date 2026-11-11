@@ -23,8 +23,11 @@ One file, not six. Aim for one screen; two screens means it's probably an epic.
 
 ```json
 { "id": "T2", "title": "Save cart API", "covers": ["R1", "A2"],
+  "files": ["src/api/carts.ts", "src/api/carts.test.ts"],
   "verify": "POST /api/carts returns 201 with id", "passes": false, "notes": "" }
 ```
+
+`files` is every file the task creates, changes or deletes. See [Plan scope](#plan-scope).
 
 This follows the pattern Anthropic describes for long-running agents: a structured list where agents may only flip `passes`, plus a progress log, so any fresh session can resume from files and git rather than memory.
 
@@ -146,6 +149,34 @@ Tests a person owns, such as acceptance or contract tests, can be locked so agen
 ```
 
 While any feature is in build, verify or review, the Claude Code guard hook refuses edits to existing files there (new files are fine), and review treats any change to them as a blocker. Off by default; onboarding proposes it when the project has such a folder.
+
+## Plan scope
+
+The plan names every file each task touches (`--files` on `task add`). While a feature is in build, the Claude Code guard hook refuses edits to any other file, so a task can't quietly grow into a refactor of the module next door. Factory files under `.buildline/` are always fine.
+
+When a file really has to change, the agent adds it with the reason the plan missed it:
+
+```bash
+node .buildline/bin/feature.mjs scope 004 add src/lib/money.ts --why "rounding lives here"
+```
+
+That lands in `feature.json → scope` and the history, and review checks each reason against the diff. `scope 004` prints the whole list. A plan whose tasks list no files isn't enforced, and `"review": { "planScope": false }` turns the check off. The guard covers the editor tools; shell commands also write logs, caches and lockfiles, so they aren't checked.
+
+## Fresh-eyes reviews
+
+Each planning station hands its document to a subagent that wasn't in the conversation that wrote it, so it can't share the author's blind spots (the elephant and goldfish split from [EGM](https://github.com/google/elephant-goldfish-model)):
+
+| Station | Subagent | What it does |
+|---|---|---|
+| spec | `buildline-spec-critic` | Paraphrases the spec first (what it asks for, what it assumes exists), then checks testability, coverage, unhappy paths. The person approving compares the paraphrase with what they meant. |
+| design | `buildline-zoom-out` | Searches the code for things the design rebuilds, and flags over-building, logic in the wrong layer and alternatives rejected without a concrete reason. |
+| plan | `buildline-try-run` | Says what it would build from the spec, design and plan alone; every guess is a gap, and so is a task with no files or a decision left to the builder. |
+
+Agents weigh each finding rather than obey it: **fix** it, **contest** it with evidence the reviewer could have read, **ask** a person when the evidence is only in someone's head, or **decline** a minor one. They re-run a reviewer once after fixing; what's still open goes to the person instead of another round. A reviewer that crashed or timed out is recorded as *not run*, which never counts as a pass.
+
+## Drift
+
+Shipped specs say what was decided; later features change the code. `npx buildline drift` lists, from git, which shipped features had their files changed since (and by which features), and how stale each context file is. `/buildline-drift` hands each candidate to the `buildline-drift-checker` subagent, which reports only where the spec no longer matches the code, into `.buildline/drift/<date>.md`. A person decides each item: the code is right (a dated note goes under `## Since shipping` in that spec, or the context file is updated), the doc is right (a fix is opened), or it doesn't matter. No code changes at that station.
 
 ## Context
 

@@ -25,6 +25,7 @@ The reasoning behind Factory's design, from research done in October 2026. Sourc
 | OpenSpec | change proposals merged back into living specs (`archive`) | Spec-anchored: fold learnings back into lasting context. |
 | Superpowers | auto-triggered skills: brainstorm → worktree → plan → subagent per task → TDD → review | "Evidence over claims" and fresh subagent contexts. |
 | Taskmaster | PRD → parse → expand → next; MCP with ~36 tools (~21k tokens) | Context bloat from big tool surfaces is real. |
+| Elephant-Goldfish Model (Google) | plugin: brainstorm → draft → five-stage review by fresh subagents → resolve; drift reports against `docs/designs/` | Fresh-context reviewers find what the author can't. Adopted: the paraphrase test, the simplicity reviewer, fix / contest / escalate / decline, one re-audit, "not run" isn't a pass, a plan's file list as the build's limit (EGM leaves it unenforced), drift. Apache 2.0. |
 | GSD Core | `/gsd-onboard` for brownfield; discuss → plan → execute → verify → ship | Separate greenfield and brownfield entry points. |
 
 Shared standards: **AGENTS.md** (Linux Foundation's Agentic AI Foundation; read by Codex, Cursor, Gemini CLI, Copilot and others) and **Agent Skills** (`SKILL.md`). Claude Code reads `CLAUDE.md`, which can import `@AGENTS.md`.

@@ -25,7 +25,7 @@ Optional: for visual work, build a quick throwaway prototype (a single HTML file
 
 ## Part B: Technical design (`spec.md → ## Design → ### Technical`)
 
-1. **Approach**: the chosen approach in a few sentences, plus the strongest alternative and why it lost.
+1. **Approach**: the chosen approach in a few sentences, plus the strongest alternative and why it lost, in concrete terms: cost, complexity, risk, time, or a constraint in the code. "Simpler" alone isn't a reason.
 2. **Changes**: modules and files to add or change, data model or schema changes, API contracts (request/response shapes), events.
 3. **Risks**: migrations, performance, security, backwards compatibility, feature flags. How each is mitigated.
 4. **Test strategy**: which acceptance scenarios are covered by unit, integration or end-to-end tests, and how they'll be run.
@@ -48,6 +48,8 @@ Optional: for visual work, build a quick throwaway prototype (a single HTML file
    Most bugs that reach verify and review live here, in the branches nobody wrote down. The verifier tests every branch listed.
 
 Follow the conventions in `architecture.md`. If you're breaking one, say so explicitly.
+
+6. **Simplicity check**: hand the feature folder (path only, no summary) to the `buildline-zoom-out` subagent. It reads the technical design with no other context, searches the code for things that already do what the design adds, and flags over-building, logic in the wrong place, and alternatives rejected without a concrete reason. Handle each finding as AGENTS.md rule 11 says, and update the design where you fix one. Re-run it once if you changed the approach; anything still open goes to the person at design or plan approval. Skip this for a design with no new modules, data or contracts, and say so.
 
 ## Handoff
 

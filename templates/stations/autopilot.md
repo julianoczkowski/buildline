@@ -31,7 +31,9 @@ Stop and summarise instead of continuing if:
 - the same task fails after two genuinely different approaches,
 - a requirement or acceptance scenario looks wrong or contradictory,
 - the change needs a secret, a paid service, a production system or a destructive action,
-- `metrics.reworks` reaches 5 (the spec or plan probably needs a human).
+- `metrics.reworks` reaches 5 (the spec or plan probably needs a human),
+- a verifier or reviewer subagent failed twice (it's *not run*, which is never a pass),
+- a file outside the plan has to change and the reason isn't obvious from the spec (add it with `scope add` when it is).
 
 Write the blocker to `progress.md` and run `node .buildline/bin/feature.mjs block <id> "<one-line reason>"` so the board shows it waiting on a person.
 

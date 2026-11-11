@@ -33,7 +33,10 @@ Aim for one screen of text. If it's getting longer than two, the feature is prob
 
 ## 4. Critique
 
-Ask the `buildline-spec-critic` subagent to review `spec.md` (it checks for untestable requirements, missing unhappy paths, contradictions and hidden scope). Fix what's valid; mention anything you chose to leave and why.
+Ask the `buildline-spec-critic` subagent to review `spec.md`. Give it only the feature folder path. It starts by paraphrasing the spec (what it asks for, and what it assumes exists today), then checks for untestable requirements, missing unhappy paths, contradictions and hidden scope.
+
+- Read the paraphrase first. Where it differs from what was meant, the spec is unclear there: fix the spec, not the critic.
+- Handle each finding as AGENTS.md rule 11 says (fix, contest with evidence, ask, or decline) and note the decision in one line in `progress.md`. Re-run the critic once after fixing if you changed much; anything still open goes to the person at approval.
 
 ## 5. Epics: split
 
@@ -41,7 +44,7 @@ If `type` is `epic`, end by proposing 2–6 child features, each a thin, shippab
 
 ## 6. Approval and handoff
 
-- **Approval:** the spec needs human approval when autonomy ≤ 3. Ask: "Approve this spec?" Only when the person explicitly approves, record it: `node .buildline/bin/feature.mjs approve <id> spec --by "<their name>"`. Never record an approval on someone's behalf. They can also approve in `npx buildline ui` or `npx buildline watch`. Until then the feature stays at `spec` and the board shows it waiting on them.
+- **Approval:** the spec needs human approval when autonomy ≤ 3. Show the critic's paraphrase ("here's how someone who wasn't in this conversation read it") and any findings still open, then ask: "Approve this spec?" Only when the person explicitly approves, record it: `node .buildline/bin/feature.mjs approve <id> spec --by "<their name>"`. Never record an approval on someone's behalf. They can also approve in `npx buildline ui` or `npx buildline watch`. Until then the feature stays at `spec` and the board shows it waiting on them.
 - Once approved (or at L4), move on: `node .buildline/bin/feature.mjs move <id> design --note "<one line>"`, or `plan` if the change has no UX or architecture decisions (say why). The script refuses the move while a required approval is missing.
 - Record what happened: `node .buildline/bin/feature.mjs log <id> "spec drafted, waiting for approval"` (or what changed).
 - Suggest the next command.

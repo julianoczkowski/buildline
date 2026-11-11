@@ -14,6 +14,8 @@ Hand the job to the `buildline-verifier` subagent. Give it only:
 
 Don't pass it your build notes or your opinion of the code: the point is a fresh pair of eyes. If subagents aren't available in your tool, start a new session and run the steps below yourself, reading only the spec.
 
+If the verifier errors, times out or comes back without a result per scenario, run it once more. If it fails again, the feature is **not verified**: log `verifier: not run (<why>)`, don't move it to review, and block with the reason. A missing report is never a pass.
+
 ## 2. What the verifier does
 
 1. Runs `node .buildline/bin/gates.mjs`. Any red gate is a fail.

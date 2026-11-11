@@ -35,6 +35,7 @@ const STATION_SKILLS = [
   ['buildline-verify', 'verify', 'Buildline verify station: independently check a feature against its acceptance scenarios with gates, the running app and browser checks. Use when all build tasks pass.', '<feature id>'],
   ['buildline-review', 'review', 'Buildline review station: review a feature diff against its spec and principles, then prepare the PR description. Use when verification passes.', '<feature id>'],
   ['buildline-ship', 'ship', 'Buildline ship station: open the PR, update the changelog and fold learnings back into the context files.', '<feature id>', true],
+  ['buildline-drift', 'drift', 'Buildline drift check: compare shipped specs and the context files with the code as it is now, list where they no longer match, and let a person decide whether the doc or the code changes. Run it weekly or before planning in an area that changed a lot.', '[feature id]', true],
   ['buildline-autopilot', 'autopilot', 'Buildline autopilot: run build, verify and review in a loop until the feature is ready to ship or blocked. Pairs with /goal for unattended runs.', '<feature id>', true],
 ];
 
@@ -124,7 +125,7 @@ export function buildEntries(root, config) {
       const body = `${handoff}\nRead \`.buildline/stations/${station}.md\` now and follow it step by step. It is the single source of truth for this station, shared with every other agent in the project.\n\nArguments: $ARGUMENTS\n`;
       add(`.claude/skills/${name}/SKILL.md`, front.join('\n') + '\n' + body);
     }
-    const subagentStation = { ...Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st])), 'buildline-finding-checker.md': 'review', 'buildline-try-run.md': 'plan' };
+    const subagentStation = { ...Object.fromEntries(Object.entries(STATION_SUBAGENTS).map(([st, agent]) => [`${agent}.md`, st])), 'buildline-finding-checker.md': 'review', 'buildline-try-run.md': 'plan', 'buildline-zoom-out.md': 'design' };
     for (const f of fs.readdirSync(path.join(templatesDir, 'agents'))) {
       const m = subagentStation[f] ? modelFor(config, subagentStation[f]) : null;
       // Subagents follow the session's model (`model: inherit`) unless buildline.json picks one for their station.

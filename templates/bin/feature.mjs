@@ -9,8 +9,11 @@
 //   node .buildline/bin/feature.mjs show <id>
 //   node .buildline/bin/feature.mjs move <id> <station> [--note "…"] [--cause spec|design|plan|process|code]
 //                                   (--cause is required when verify or review sends work back)
-//   node .buildline/bin/feature.mjs task <id> add "<title>" [--verify "…"] [--covers R1,A2] [--parallel]
+//   node .buildline/bin/feature.mjs task <id> add "<title>" [--verify "…"] [--covers R1,A2] [--files "src/a.ts,src/a.test.ts"] [--parallel]
+//   node .buildline/bin/feature.mjs task <id> <T1> files "src/a.ts,src/a.test.ts"   (before build; then use scope add)
 //   node .buildline/bin/feature.mjs task <id> <T1> pass|fail [--note "what you ran and saw"]
+//   node .buildline/bin/feature.mjs scope <id> [add <path>... --why "<reason>"]
+//                                   (the files the plan lets build change; add one during build with a reason)
 //   node .buildline/bin/feature.mjs log <id> "<note>"
 //   node .buildline/bin/feature.mjs block <id> "<question or reason>"
 //   node .buildline/bin/feature.mjs unblock <id> [--note "…"]
@@ -145,7 +148,45 @@ export function reviewConfig(config) {
     maxRounds: r.maxRounds ?? DEFAULT_MAX_ROUNDS,
     // Tests a person owns (acceptance tests, contract tests): agents can add files here but not change existing ones mid-build.
     lockedTests: Array.isArray(r.lockedTests) ? r.lockedTests : [],
+    // While a feature is in build, agents may only edit the files its tasks list (plus scope additions).
+    planScope: r.planScope !== false,
   };
+}
+
+// ---- plan scope -------------------------------------------------------------------
+// The plan names every file each task creates, changes or deletes. During build those
+// files, plus any added with a reason (`scope add`), are the only ones an agent may edit.
+
+const list = (v) => (Array.isArray(v) ? v : String(v ?? '').split(',')).map((s) => String(s).trim().replace(/^\.\//, '')).filter(Boolean);
+
+/** Every path or glob the feature's plan lets build touch. Empty when the plan lists no files. */
+export function planScope(data) {
+  const fromTasks = (data?.tasks || []).flatMap((t) => list(t.files));
+  const added = (data?.scope || []).map((s) => s.path);
+  return [...new Set([...fromTasks, ...added])];
+}
+
+/** Is repo-relative `rel` inside `scope`? Plain entries match exactly (or a folder ending in /); globs match as globs. */
+export function inScope(scope, rel) {
+  return scope.some((p) => p === rel || (/[*?]/.test(p) || p.endsWith('/') ? scopeRegex(p).test(rel) : false));
+}
+
+// Unlike globToRegex, a bare pattern ("*.md", "docs/") matches at the repo root only: plans name exact places.
+// Write "**/*.md" to match at any depth.
+const scopeRegex = (p) => (p.startsWith('**') ? globToRegex(p) : new RegExp(globToRegex(p).source.replace(/^\^\(\?:\.\*\\?\/\)\?/, '^')));
+
+export function addScope(root, ref, paths, why) {
+  const add = list(paths);
+  if (!add.length) throw new Error('Name the file(s) to add, e.g. scope 004 add src/lib/money.ts --why "rounding lives here"');
+  if (!why || why === true) throw new Error('Say why the plan missed it: --why "<reason>". The reviewer reads every addition.');
+  const f = load(root, ref);
+  const have = planScope(f.data);
+  const fresh = add.filter((p) => !have.includes(p));
+  const at = now();
+  f.data.scope = [...(f.data.scope || []), ...fresh.map((p) => ({ path: p, why, at, station: f.data.status }))];
+  if (fresh.length) record(f.data, f.data.status, `Scope: added ${fresh.join(', ')}: ${why}`);
+  save(f);
+  return fresh;
 }
 
 /** `src/**`, `*.yml`, `billing/` style globs to a RegExp over repo-relative paths. */
@@ -314,12 +355,12 @@ export function approve(root, ref, stage, by) {
   return f.data;
 }
 
-export function addTask(root, ref, title, { verify, covers, parallel } = {}) {
+export function addTask(root, ref, title, { verify, covers, parallel, files } = {}) {
   if (!title) throw new Error('A task needs a title.');
   const f = load(root, ref);
   const tasks = f.data.tasks || [];
   const n = tasks.reduce((m, t) => Math.max(m, parseInt(String(t.id).replace(/\D/g, ''), 10) || 0), 0) + 1;
-  const task = { id: `T${n}`, title, ...(covers ? { covers: String(covers).split(',').map((s) => s.trim()).filter(Boolean) } : {}), ...(verify ? { verify } : {}), ...(parallel ? { parallel: true } : {}), passes: false, notes: '' };
+  const task = { id: `T${n}`, title, ...(covers ? { covers: String(covers).split(',').map((s) => s.trim()).filter(Boolean) } : {}), ...(verify ? { verify } : {}), ...(files && files !== true ? { files: list(files) } : {}), ...(parallel ? { parallel: true } : {}), passes: false, notes: '' };
   f.data.tasks = [...tasks, task];
   save(f);
   return task;
@@ -332,6 +373,19 @@ export function setTask(root, ref, id, passes, note) {
   task.passes = passes;
   if (note) task.notes = note;
   record(f.data, f.data.status, `${task.id} ${passes ? 'passes' : 'fails'}${note ? `: ${note}` : ''}`);
+  save(f);
+  return task;
+}
+
+/** Set a task's files while planning. Once build starts, additions go through addScope so they carry a reason. */
+export function setTaskFiles(root, ref, id, files) {
+  const f = load(root, ref);
+  if (['build', 'verify', 'review', 'ship', 'done'].includes(f.data.status)) {
+    throw new Error(`${f.data.id} is in "${f.data.status}": add files with scope ${f.data.id} add <path> --why "<reason>" so the reviewer sees why.`);
+  }
+  const task = (f.data.tasks || []).find((t) => String(t.id).toLowerCase() === String(id).toLowerCase());
+  if (!task) throw new Error(`${f.data.id} has no task ${id}. Tasks: ${(f.data.tasks || []).map((t) => t.id).join(', ') || 'none yet'}.`);
+  task.files = list(files);
   save(f);
   return task;
 }
@@ -447,9 +501,21 @@ function main(argv) {
         return console.log(`✔ ${t.id} added: ${t.title}`);
       }
       const [id, verdict] = rest;
+      if (verdict === 'files') {
+        const t = setTaskFiles(root, ref, id, rest.slice(2).join(','));
+        return console.log(`✔ ${t.id} files: ${t.files.join(', ') || 'none'}`);
+      }
       if (!['pass', 'fail'].includes(verdict)) throw new Error('Usage: task <id> <T1> pass|fail [--note "…"]');
       const t = setTask(root, ref, id, verdict === 'pass', opts.note);
       return console.log(`✔ ${t.id} ${t.passes ? 'passes' : 'fails'} · ${summary(load(root, ref).data)}`);
+    }
+    case 'scope': {
+      if (rest[0] === 'add') {
+        const added = addScope(root, ref, rest.slice(1), opts.why);
+        return console.log(added.length ? `✔ added to ${ref}'s scope: ${added.join(', ')}` : '✔ already in scope');
+      }
+      const scope = planScope(load(root, ref).data);
+      return console.log(scope.length ? scope.join('\n') : `${ref}'s plan lists no files, so build may edit any file.`);
     }
     case 'log':
       log(root, ref, rest.join(' '));

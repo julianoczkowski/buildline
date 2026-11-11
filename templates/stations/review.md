@@ -22,10 +22,13 @@ The reviewer reports only findings that matter, each with file:line, severity (`
 - **Maintainability:** follows existing conventions, no dead code or debug leftovers, names make sense.
 - **Tests:** the tests actually assert the behaviour (not just "doesn't crash"); no skipped or weakened tests. Any change to a locked test (`review.lockedTests` in `buildline.json`) is a blocker unless a person made or approved it.
 - **UX (UI changes):** matches `## Design`; use the `buildline-design-reviewer` subagent with screenshots from `evidence/`.
+- **Scope:** files changed outside the plan (`feature.json → scope` lists every addition made during build, with its reason). Each reason must hold up; a change that has nothing to do with the feature is a `should-fix` (move it to its own fix).
 
 ## 3. Check the findings
 
 Reviewers over-report, and every false alarm costs a round of rework. Hand the `blocker` and `should-fix` findings to the `buildline-finding-checker` subagent, which tries to confirm each one from the code (reading, and running a test or script where it's cheap). Keep only the findings it confirms. Findings it marks `pre-existing` are treated as pre-existing. If subagents aren't available, check each finding yourself the same way before acting on it.
+
+If the reviewer or the checker errors, times out or returns nothing, run it once more. If it fails again, the review didn't happen: log `<reviewer>: not run (<why>)`, don't call the review clean, and block with the reason.
 
 ## 4. Security review
 

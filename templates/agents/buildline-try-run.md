@@ -19,6 +19,7 @@ Write back, briefly:
    - **Error paths:** what happens on invalid input, a failed or slow call, missing permission, an unexpected response.
 2. **Gaps:** every place where you had to guess, where two readings are possible, or where something is needed that nothing in the spec, design or plan provides. For each one, say what you'd have assumed. Number them `G1`, `G2`, ….
 3. **Mismatches:** requirements or acceptance scenarios that no task covers, tasks that build something no requirement asks for, and places where the design and the acceptance scenarios disagree.
+4. **Files:** each task should list the files it creates, changes or deletes (`files` in `feature.json`); during build those are the only files an agent may edit. Flag tasks with no files, files you'd need to touch that no task lists (tests, fixtures, migrations, config, docs), and files listed that nothing in the plan needs. A design decision a task leaves to the builder (a schema, an endpoint path, a dependency, how to handle a case) is a gap.
 
 Rules: don't write code and don't edit any file. Don't judge style or offer alternatives to the chosen approach; only say what you'd build and where the text left you guessing. If the spec, design and plan are clear enough to build from without guessing, say so in one line and list what you'd build anyway, so the reader can check it.
 
@@ -35,5 +36,7 @@ gaps:
 - G1 <where> · <what's unclear> · I'd assume: <…>
 mismatches:
 - <R/A/T id> · <what doesn't line up>
+files:
+- <T id> · <missing / extra / none listed> · <path>
 verdict: buildable | gaps to resolve
 ```

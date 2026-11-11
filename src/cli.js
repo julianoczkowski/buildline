@@ -10,6 +10,7 @@ import { PHASES, MODEL_STATIONS, CLIS, modelFor, parseModel, parseModelList, des
 import { listFeatures, findFeature, createFeature, approve, setStatus, nextAction, moveBlocker, sensitiveBlocker, dropFeature, reopenFeature, outcomes, epicSummary, epicNote, isResolved, readSessions, liveState, causeProblem, DROPPED, STATIONS, TYPES } from './features.js';
 import { flow, causes, waits, waitingOnPeople, span, REMEDY } from './insights.js';
 import { chime } from './sound.js';
+import { drift as findDrift } from './drift.js';
 
 const LOGO = [
   pc.yellow('  ┌┐ ┬ ┬┬┬  ┌┬┐┬  ┬┌┐┌┌─┐'),
@@ -335,6 +336,28 @@ export function insights(root, opts = {}) {
   console.log(pc.dim('\n  Waiting time is estimated from history: the gap before each approval, blocked spans, the wait to merge.\n'));
 }
 
+/** Shipped specs whose code changed since, and context files that may be stale: what to check for drift. */
+export function drift(root, opts = {}) {
+  const config = loadConfig(root);
+  const r = findDrift(root, listFeatures(root));
+  if (opts.json) return console.log(JSON.stringify(r, null, 2));
+  const ago = (iso) => (iso ? `${span(Date.now() - new Date(iso).getTime())} ago` : 'never');
+  console.log(`\n${pc.bold(config.project)} ${pc.dim('·')} drift: where the specs and context may no longer match the code\n`);
+  const moved = r.features.filter((f) => f.changed.length || f.gone.length);
+  console.log(pc.bold('  Shipped features changed since') + pc.dim(`  (${moved.length} of ${r.features.length} traced)`));
+  if (!moved.length) console.log(pc.dim(r.features.length ? '    None: no later commits touched what they shipped.' : '    Nothing shipped yet with tagged commits ([004/T1]).'));
+  for (const f of moved) {
+    const by = [...Object.entries(f.by).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${id} ×${n}`), f.untagged && `untagged ×${f.untagged}`].filter(Boolean).join(', ');
+    console.log(`    ${pc.dim(f.id)}  ${(f.title || '').slice(0, 32).padEnd(32)}  ${pc.yellow(`${f.changed.length}/${f.files.length} files`)} ${pc.dim(`changed · ${f.commits} commit${f.commits === 1 ? '' : 's'} (${by}) · shipped ${ago(f.shippedAt)}`)}${f.gone.length ? pc.red(` · ${f.gone.length} gone`) : ''}`);
+    const shown = [...f.gone.map((p) => pc.red(p)), ...f.changed.filter((p) => !f.gone.includes(p))];
+    console.log(pc.dim(`          ${shown.slice(0, 4).join(', ')}${shown.length > 4 ? `, +${shown.length - 4} more` : ''}`));
+  }
+  if (r.untraced.length) console.log(pc.dim(`    ${r.untraced.length} shipped feature${r.untraced.length === 1 ? ' has' : 's have'} no tagged commits to trace: ${r.untraced.map((f) => f.id).join(', ')}`));
+  console.log(`\n${pc.bold('  Context files')}`);
+  for (const c of r.context) console.log(`    ${path.basename(c.file).padEnd(16)} ${!c.updatedAt ? pc.dim('not committed yet') : `${pc.dim(`updated ${ago(c.updatedAt)}`)}${c.commits ? ` · ${(c.commits >= 20 ? pc.yellow : pc.dim)(`${c.commits} commits since, ${c.files} files`)}` : pc.dim(' · nothing changed since')}`}`);
+  console.log(`\n  ${pc.cyan('▸')} These are candidates, not findings. To check them against what the specs say: ${pc.cyan('/buildline-drift')} ${pc.dim('(or npx buildline step drift)')}\n`);
+}
+
 // ---- watch -------------------------------------------------------------------
 
 export async function watch(root, opts = {}) {
@@ -458,7 +481,7 @@ const launchClaude = (root, args) => launch(root, 'claude', args);
 /** Open a station for a feature in whichever CLI and model buildline.json routes it to. */
 export async function step(root, station, ref, opts = {}) {
   const config = loadConfig(root);
-  if (station !== 'buildline' && !MODEL_STATIONS.includes(station) && station !== 'autopilot') throw new Error(`Unknown station "${station}". Use one of: ${MODEL_STATIONS.join(', ')}.`);
+  if (station !== 'buildline' && !MODEL_STATIONS.includes(station) && station !== 'autopilot' && station !== 'drift') throw new Error(`Unknown station "${station}". Use one of: ${MODEL_STATIONS.join(', ')}.`);
   const f = ref ? findFeature(root, ref) : null;
   if (ref && !f) throw new Error(`No feature matching "${ref}".`);
   const m = opts.model ? parseModel(opts.model) : modelFor(config, station);

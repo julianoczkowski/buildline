@@ -112,6 +112,7 @@ Claude Code skills and subagents switch model per station. A station set to Code
 Instructions in prose are advice. These are enforced:
 
 - **Acceptance lock.** A Claude Code hook blocks edits to a spec's `## Acceptance` while the feature is in build, verify or review. Agents can't move the goalposts.
+- **Builds stay inside the plan.** Each task lists the files it changes. While a feature is in build, the hook refuses edits anywhere else; an agent that needs another file adds it with a reason, and the reviewer reads every addition.
 - **Independent verification.** The verifier subagent starts in a clean context with only the spec, so the builder never grades its own work.
 - **Evidence before `passes`.** A task is done only after its verification step and the gates have been run and observed.
 - **Checked review.** The reviewer follows your `REVIEW.md`, a second agent confirms every finding from the code before it costs a round, old bugs are labelled pre-existing, and after three rounds a person decides how to go on. [Modelled on how Anthropic reviews agent-written code →](docs/concepts.md#review)
@@ -165,8 +166,8 @@ It runs on `127.0.0.1`, needs no account, and only touches Buildline's markdown 
 ```text
 AGENTS.md                       + Buildline block: rules, pipeline, gates (read by every agent)
 CLAUDE.md                       + Buildline block: imports AGENTS.md, lists skills
-.claude/skills/buildline-*/     11 skills: /buildline, /buildline-new, /buildline-spec … /buildline-autopilot
-.claude/agents/buildline-*.md   6 subagents: spec-critic, verifier, reviewer, finding-checker, design-reviewer, mapper
+.claude/skills/buildline-*/     12 skills: /buildline, /buildline-new, /buildline-spec … /buildline-autopilot, /buildline-drift
+.claude/agents/buildline-*.md   9 subagents: spec-critic, zoom-out, try-run, verifier, reviewer, finding-checker, design-reviewer, drift-checker, mapper
 .claude/settings.json           + hooks (session briefing, acceptance lock) + gate permissions
 .cursor/rules/buildline.mdc     if you use Cursor
 GEMINI.md                       + import block, if you use Gemini CLI
@@ -198,6 +199,7 @@ npx buildline approve <id> <stage>   record an approval (spec | design | plan)
 npx buildline ui                     dashboard
 npx buildline watch                  live view of the line in the terminal
 npx buildline insights               where work comes back, why, and time waiting on people
+npx buildline drift                  shipped specs and context files whose code changed since
 npx buildline step <station> [id]    open a station on its model  --headless --model
 npx buildline models                 choose models  set <station|phase> <model> · check
 npx buildline run <id>               autopilot with Claude Code /goal  --headless

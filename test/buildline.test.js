@@ -693,3 +693,122 @@ test('try run: the subagent is installed and the plan station and spec template 
   assert.match(spec, /^## Try run$/m);
   assert.match(spec, /^#### Edge behaviour$/m);
 });
+
+test('plan scope: during build, agents edit only the files the plan lists, or add one with a reason', () => {
+  const root = tmp();
+  install(root, { autonomy: 4 });
+  const guard = (input) => hook(root, 'guard', input);
+  const edit = (rel, extra = {}) => ({ tool_name: 'Edit', tool_input: { file_path: path.join(root, rel), old_string: 'a', new_string: 'b' }, ...extra });
+  script(root, 'new', 'Saved carts');
+  assert.equal(script(root, 'task', '1', 'add', 'Model', '--files', 'src/carts/model.ts, src/carts/model.test.ts').status, 0);
+  script(root, 'task', '1', 'add', 'Generated client', '--files', 'src/gen/**');
+  assert.deepEqual(featureJson(root, '001').tasks[0].files, ['src/carts/model.ts', 'src/carts/model.test.ts']);
+  assert.equal(guard(edit('src/utils/money.ts')).status, 0); // not in build yet
+  assert.equal(script(root, 'task', '1', 'T2', 'files', 'src/gen/**,openapi.yaml').status, 0); // planning: files can still change
+  script(root, 'move', '1', 'build', '--force');
+
+  assert.equal(guard(edit('src/carts/model.ts')).status, 0);
+  assert.equal(guard(edit('src/gen/api/client.ts')).status, 0);
+  assert.equal(guard(edit('.buildline/features/001-saved-carts/progress.md')).status, 0);
+  const denied = guard(edit('src/utils/money.ts'));
+  assert.equal(denied.status, 2);
+  assert.match(denied.stderr, /src\/utils\/money\.ts isn't in 001's plan/);
+  assert.match(denied.stderr, /scope 001 add src\/utils\/money\.ts --why/);
+  assert.equal(guard({ tool_name: 'Write', tool_input: { file_path: path.join(root, 'src/new.ts'), content: 'x' } }).status, 2);
+
+  // In build, a task's files are fixed; additions need a reason, and the reviewer sees them.
+  assert.match(script(root, 'task', '1', 'T1', 'files', 'src/utils/money.ts').stderr, /scope 001 add/);
+  assert.match(script(root, 'scope', '1', 'add', 'src/utils/money.ts').stderr, /--why/);
+  assert.equal(script(root, 'scope', '1', 'add', 'src/utils/money.ts', '--why', 'rounding lives here').status, 0);
+  assert.equal(guard(edit('src/utils/money.ts')).status, 0);
+  const f = featureJson(root, '001');
+  assert.deepEqual(f.scope.map((s) => [s.path, s.why, s.station]), [['src/utils/money.ts', 'rounding lives here', 'build']]);
+  assert.match(f.history.at(-1).note, /Scope: added src\/utils\/money\.ts: rounding lives here/);
+  assert.match(script(root, 'scope', '1').stdout, /src\/carts\/model\.ts[\s\S]*openapi\.yaml[\s\S]*src\/utils\/money\.ts/);
+
+  // With two features in build, the session's own feature decides.
+  script(root, 'new', 'Wishlist');
+  script(root, 'task', '2', 'add', 'List', '--files', 'src/wishlist.ts');
+  script(root, 'move', '2', 'build', '--force');
+  assert.equal(guard(edit('src/wishlist.ts')).status, 0); // no session: can't tell which plan applies
+  hook(root, 'prompt', { session_id: 's1', prompt: '/buildline-build 2' });
+  assert.equal(guard(edit('src/wishlist.ts', { session_id: 's1' })).status, 0);
+  assert.equal(guard(edit('src/carts/model.ts', { session_id: 's1' })).status, 2);
+
+  // A plan without files isn't enforced, and review.planScope: false turns it off.
+  script(root, 'new', 'Old style');
+  script(root, 'task', '3', 'add', 'Anything');
+  script(root, 'move', '3', 'build', '--force');
+  hook(root, 'prompt', { session_id: 's2', prompt: '/buildline-build 3' });
+  assert.equal(guard(edit('src/anything.ts', { session_id: 's2' })).status, 0);
+  const cfgPath = path.join(root, '.buildline/buildline.json');
+  fs.writeFileSync(cfgPath, JSON.stringify({ ...JSON.parse(read(root, '.buildline/buildline.json')), review: { planScope: false } }));
+  assert.equal(guard(edit('src/carts/model.ts', { session_id: 's1' })).status, 0);
+});
+
+test('drift: shipped features whose files later commits changed, and stale context files', () => {
+  const root = tmp();
+  install(root, { autonomy: 4 });
+  const g = (date, ...args) => spawnSync('git', args, { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  const commit = (date, msg, files) => {
+    for (const [rel, text] of Object.entries(files)) write(root, rel, text);
+    g(date, 'add', '-A');
+    g(date, 'commit', '-q', '-m', msg);
+  };
+  g('2026-01-01T00:00:00Z', 'init', '-q');
+  commit('2026-01-01T00:00:00Z', 'setup', { 'README.md': '# x' });
+  script(root, 'new', 'Saved carts');
+  script(root, 'new', 'Wishlist');
+  commit('2026-01-02T00:00:00Z', 'feat: carts [001/T1]', { 'src/carts.js': 'v1', 'src/money.js': 'v1' });
+  commit('2026-01-02T01:00:00Z', 'feat: wishlist [002/T1]', { 'src/wishlist.js': 'v1' });
+  for (const id of ['1', '2']) script(root, 'move', id, 'done', '--force');
+  for (const id of ['001', '002']) {
+    const dir = fs.readdirSync(path.join(root, '.buildline/features')).find((d) => d.startsWith(id));
+    const file = path.join(root, '.buildline/features', dir, 'feature.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.metrics.shippedAt = '2026-01-03T00:00:00Z';
+    fs.writeFileSync(file, JSON.stringify(data));
+  }
+  commit('2026-01-03T00:00:00Z', 'docs: context', { '.buildline/context/architecture.md': '# arch' });
+  commit('2026-01-04T00:00:00Z', 'feat: discounts [003/T1]', { 'src/carts.js': 'v2' });
+  commit('2026-01-05T00:00:00Z', 'tidy', { 'src/carts.js': 'v3' });
+  g('2026-01-06T00:00:00Z', 'rm', '-q', 'src/money.js');
+  g('2026-01-06T00:00:00Z', 'commit', '-q', '-m', 'remove money');
+
+  const out = spawnSync(process.execPath, [bin, 'drift', '--json', '-C', root], { encoding: 'utf8' });
+  assert.equal(out.status, 0, out.stderr);
+  const r = JSON.parse(out.stdout);
+  const carts = r.features.find((f) => f.id === '001');
+  assert.deepEqual(carts.files.sort(), ['src/carts.js', 'src/money.js']);
+  assert.deepEqual(carts.changed.sort(), ['src/carts.js', 'src/money.js']);
+  assert.deepEqual(carts.gone, ['src/money.js']);
+  assert.deepEqual([carts.commits, carts.by, carts.untagged], [3, { '003': 1 }, 2]);
+  const wish = r.features.find((f) => f.id === '002');
+  assert.deepEqual([wish.changed, wish.commits], [[], 0]);
+  assert.equal(r.features[0].id, '001'); // most changed first
+  const arch = r.context.find((c) => c.file.endsWith('architecture.md'));
+  assert.equal(arch.commits, 3);
+
+  const text = spawnSync(process.execPath, [bin, 'drift', '-C', root], { encoding: 'utf8' }).stdout.replace(/\x1b\[[0-9;]*m/g, '');
+  assert.match(text, /001\s+Saved carts\s+2\/2 files changed · 3 commits \(003 ×1, untagged ×2\)/);
+  assert.match(text, /1 gone/);
+  assert.match(text, /\/buildline-drift/);
+});
+
+test('fresh-eyes reviews: paraphrase, simplicity check, findings rules, drift station', () => {
+  const root = tmp();
+  install(root, { agents: ['claude'] });
+  assert.match(read(root, '.claude/agents/buildline-spec-critic.md'), /What this asks for/);
+  assert.match(read(root, '.claude/agents/buildline-zoom-out.md'), /name: buildline-zoom-out/);
+  assert.match(read(root, '.claude/agents/buildline-drift-checker.md'), /No drift detected/);
+  assert.match(read(root, '.claude/agents/buildline-try-run.md'), /^files:$/m);
+  assert.match(read(root, '.buildline/stations/design.md'), /buildline-zoom-out/);
+  assert.match(read(root, '.buildline/stations/plan.md'), /--files/);
+  assert.match(read(root, '.buildline/stations/drift.md'), /buildline-drift-checker/);
+  assert.match(read(root, '.claude/skills/buildline-drift/SKILL.md'), /stations\/drift\.md/);
+  const agents = read(root, 'AGENTS.md');
+  assert.match(agents, /\*\*contest\*\* it/);
+  assert.match(agents, /re-run the same reviewer \*\*once\*\*/);
+  assert.match(agents, /didn't review/);
+  for (const st of ['verify', 'review']) assert.match(read(root, `.buildline/stations/${st}.md`), /not run/);
+});
